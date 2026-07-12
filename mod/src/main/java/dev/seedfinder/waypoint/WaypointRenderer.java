@@ -7,25 +7,25 @@ import com.mojang.blaze3d.platform.DepthTestFunction;
 import com.mojang.blaze3d.systems.CommandEncoder;
 import com.mojang.blaze3d.systems.RenderPass;
 import com.mojang.blaze3d.systems.RenderSystem;
-import com.mojang.blaze3d.vertex.BufferBuilder;
-import com.mojang.blaze3d.vertex.ByteBufferBuilder;
-import com.mojang.blaze3d.vertex.MeshData;
-import com.mojang.blaze3d.vertex.VertexFormat;
-import net.fabricmc.fabric.api.client.rendering.v1.HudRenderCallback;
-import net.fabricmc.fabric.api.client.rendering.v1.world.WorldRenderContext;
-import net.fabricmc.fabric.api.client.rendering.v1.world.WorldRenderEvents;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.font.TextRenderer;
 import net.minecraft.client.gui.DrawContext;
+import net.minecraft.client.render.BufferBuilder;
+import net.minecraft.client.render.ByteBufferBuilder;
 import net.minecraft.client.render.Camera;
 import net.minecraft.client.render.MappableRingBuffer;
+import net.minecraft.client.render.MeshData;
 import net.minecraft.client.render.RenderPipelines;
 import net.minecraft.client.render.RenderTickCounter;
-import net.minecraft.client.render.rendertype.RenderType;
+import net.minecraft.client.render.RenderType;
+import net.minecraft.client.render.VertexFormat;
 import net.minecraft.client.util.math.MatrixStack;
 import net.minecraft.util.Identifier;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.util.math.Vec3d;
+import net.fabricmc.fabric.api.client.rendering.v1.HudRenderCallback;
+import net.fabricmc.fabric.api.client.rendering.v1.world.WorldRenderContext;
+import net.fabricmc.fabric.api.client.rendering.v1.world.WorldRenderEvents;
 import org.joml.Matrix4f;
 import org.joml.Matrix4fc;
 import org.joml.Vector3f;
@@ -71,7 +71,7 @@ public final class WaypointRenderer {
         var waypoints = WaypointStore.snapshot();
         if (waypoints.isEmpty()) return;
 
-        VertexFormat.Mode mode = FILLED_THROUGH_WALLS.getVertexFormatMode();
+        VertexFormat.DrawMode mode = FILLED_THROUGH_WALLS.getVertexFormatMode();
         VertexFormat fmt = FILLED_THROUGH_WALLS.getVertexFormat();
         if (buffer == null) {
             buffer = new BufferBuilder(allocator, mode, fmt);
@@ -96,7 +96,7 @@ public final class WaypointRenderer {
             float topY = 320f;
             float bottomY = 0f;
 
-            renderFilledBox(matrices.last().pose(), buffer, minX, bottomY, minZ, maxX, topY, maxZ, r, g, b);
+            renderFilledBox(matrices.peek().getPositionMatrix(), buffer, minX, bottomY, minZ, maxX, topY, maxZ, r, g, b);
         }
 
         matrices.pop();
