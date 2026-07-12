@@ -10,13 +10,13 @@ import com.mojang.blaze3d.systems.RenderSystem;
 import com.mojang.blaze3d.vertex.VertexFormat;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.font.TextRenderer;
+import net.minecraft.client.gl.Framebuffer;
 import net.minecraft.client.gl.MappableRingBuffer;
 import net.minecraft.client.gl.RenderPipelines;
 import net.minecraft.client.gui.DrawContext;
 import net.minecraft.client.render.BufferBuilder;
 import net.minecraft.client.render.BuiltBuffer;
 import net.minecraft.client.render.Camera;
-import net.minecraft.client.render.RenderLayer;
 import net.minecraft.client.render.RenderTickCounter;
 import net.minecraft.client.util.BufferAllocator;
 import net.minecraft.client.util.math.MatrixStack;
@@ -24,8 +24,8 @@ import net.minecraft.util.Identifier;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.util.math.Vec3d;
 import net.fabricmc.fabric.api.client.rendering.v1.HudRenderCallback;
-import net.fabricmc.fabric.api.client.rendering.v1.world.WorldRenderContext;
-import net.fabricmc.fabric.api.client.rendering.v1.world.WorldRenderEvents;
+import net.fabricmc.fabric.api.client.rendering.v1.level.LevelRenderContext;
+import net.fabricmc.fabric.api.client.rendering.v1.level.LevelRenderEvents;
 import org.joml.Matrix4f;
 import org.joml.Matrix4fc;
 import org.joml.Vector3f;
@@ -40,15 +40,16 @@ public final class WaypointRenderer {
     private static WaypointRenderer instance;
     private static final Identifier MOD_ID = Identifier.of("seedfinder");
 
-    // ponytail: custom through-walls pipeline based on DEBUG_FILLED_SNIPPET
+    // ponytail: custom through-walls pipeline based on DEBUG_FILLED_BOX
     private static final RenderPipeline FILLED_THROUGH_WALLS = RenderPipelines.register(
-        RenderPipeline.builder(RenderPipelines.DEBUG_FILLED_SNIPPET)
+        RenderPipeline.builder(RenderPipelines.DEBUG_FILLED_BOX)
             .withLocation(Identifier.of("seedfinder", "pipeline/debug_filled_box_through_walls"))
             .withDepthTestFunction(DepthTestFunction.NO_DEPTH_TEST)
             .build()
     );
 
-    private static final BufferAllocator allocator = new BufferAllocator(RenderLayer.SMALL_BUFFER_SIZE);
+    // ponytail: hardcode 256 (old RenderType.SMALL_BUFFER_SIZE), no constant in Yarn 1.21.11
+    private static final BufferAllocator allocator = new BufferAllocator(256);
     private BufferBuilder buffer;
     private static final Vector4f COLOR_MODULATOR = new Vector4f(1f, 1f, 1f, 1f);
     private static final Vector3f MODEL_OFFSET = new Vector3f();
@@ -60,11 +61,11 @@ public final class WaypointRenderer {
     public static void register() {
         if (instance != null) return;
         instance = new WaypointRenderer();
-        WorldRenderEvents.BEFORE_TRANSLUCENT.register(instance::extractAndDraw);
+        LevelRenderEvents.AFTER_TRANSLUCENT_TERRAIN.register(instance::extractAndDraw);
         HudRenderCallback.EVENT.register(WaypointRenderer::renderHud);
     }
 
-    private void extractAndDraw(WorldRenderContext ctx) {
+    private void extractAndDraw(LevelRenderContext ctx) {
         var client = MinecraftClient.getInstance();
         if (client.world == null || client.player == null) return;
 
@@ -77,8 +78,8 @@ public final class WaypointRenderer {
             buffer = new BufferBuilder(allocator, mode, fmt);
         }
 
-        MatrixStack matrices = ctx.matrices();
-        Vec3d camera = ctx.worldState().cameraRenderState.pos;
+        MatrixStack matrices = ctx.poseStack();
+        Vec3d camera = ctx.levelState().cameraRenderState.pos;
 
         matrices.push();
         matrices.translate(-camera.x, -camera.y, -camera.z);
@@ -131,21 +132,22 @@ public final class WaypointRenderer {
             indices = FILLED_THROUGH_WALLS.getVertexFormat().uploadImmediateIndexBuffer(builtBuffer.getSortedBuffer());
             indexType = builtBuffer.getDrawParameters().indexType();
         } else {
-            RenderSystem.AutoStorageIndexBuffer shapeIndexBuffer = RenderSystem.getSequentialBuffer(FILLED_THROUGH_WALLS.getVertexFormatMode());
+            RenderSystem.ShapeIndexBuffer shapeIndexBuffer = RenderSystem.getSequentialBuffer(FILLED_THROUGH_WALLS.getVertexFormatMode());
             indices = shapeIndexBuffer.getBuffer(drawParams.indexCount());
             indexType = shapeIndexBuffer.type();
         }
 
+        Framebuffer fb = client.getFramebuffer();
         GpuBufferSlice dynamicTransforms = RenderSystem.getDynamicUniforms()
-            .writeTransform(RenderSystem.getModelViewMatrix(), COLOR_MODULATOR, MODEL_OFFSET, TEXTURE_MATRIX);
+            .write(RenderSystem.getModelViewMatrix(), COLOR_MODULATOR, MODEL_OFFSET, TEXTURE_MATRIX);
 
         try (RenderPass pass = RenderSystem.getDevice()
                 .createCommandEncoder()
                 .createRenderPass(
                     () -> "seedfinder waypoint rendering",
-                    client.getFramebuffer().getColorTextureView(),
+                    fb.getColorAttachmentView(),
                     OptionalInt.empty(),
-                    client.getFramebuffer().getDepthTextureView(),
+                    fb.getDepthAttachmentView(),
                     OptionalDouble.empty()
                 )) {
             pass.setPipeline(FILLED_THROUGH_WALLS);
@@ -164,7 +166,7 @@ public final class WaypointRenderer {
         drawLabels(ctx, waypoints, matrices, camera);
     }
 
-    private static void drawLabels(WorldRenderContext ctx, List<Waypoint> waypoints, MatrixStack matrices, Vec3d camPos) {
+    private static void drawLabels(LevelRenderContext ctx, List<Waypoint> waypoints, MatrixStack matrices, Vec3d camPos) {
         var client = MinecraftClient.getInstance();
         if (client.player == null) return;
         Camera cam = client.gameRenderer.getCamera();
@@ -195,30 +197,31 @@ public final class WaypointRenderer {
 
     private static void renderFilledBox(Matrix4fc posMat, BufferBuilder b, float minX, float minY, float minZ,
                                          float maxX, float maxY, float maxZ, float r, float g, float bl) {
-        b.addVertex(posMat, minX, minY, maxZ).setColor(r, g, bl, 0.2f);
-        b.addVertex(posMat, maxX, minY, maxZ).setColor(r, g, bl, 0.2f);
-        b.addVertex(posMat, maxX, maxY, maxZ).setColor(r, g, bl, 0.2f);
-        b.addVertex(posMat, minX, maxY, maxZ).setColor(r, g, bl, 0.2f);
-        b.addVertex(posMat, maxX, minY, minZ).setColor(r, g, bl, 0.2f);
-        b.addVertex(posMat, minX, minY, minZ).setColor(r, g, bl, 0.2f);
-        b.addVertex(posMat, minX, maxY, minZ).setColor(r, g, bl, 0.2f);
-        b.addVertex(posMat, maxX, maxY, minZ).setColor(r, g, bl, 0.2f);
-        b.addVertex(posMat, minX, minY, minZ).setColor(r, g, bl, 0.2f);
-        b.addVertex(posMat, minX, minY, maxZ).setColor(r, g, bl, 0.2f);
-        b.addVertex(posMat, minX, maxY, maxZ).setColor(r, g, bl, 0.2f);
-        b.addVertex(posMat, minX, maxY, minZ).setColor(r, g, bl, 0.2f);
-        b.addVertex(posMat, maxX, minY, maxZ).setColor(r, g, bl, 0.2f);
-        b.addVertex(posMat, maxX, minY, minZ).setColor(r, g, bl, 0.2f);
-        b.addVertex(posMat, maxX, maxY, minZ).setColor(r, g, bl, 0.2f);
-        b.addVertex(posMat, maxX, maxY, maxZ).setColor(r, g, bl, 0.2f);
-        b.addVertex(posMat, minX, maxY, maxZ).setColor(r, g, bl, 0.6f);
-        b.addVertex(posMat, maxX, maxY, maxZ).setColor(r, g, bl, 0.6f);
-        b.addVertex(posMat, maxX, maxY, minZ).setColor(r, g, bl, 0.6f);
-        b.addVertex(posMat, minX, maxY, minZ).setColor(r, g, bl, 0.6f);
-        b.addVertex(posMat, minX, minY, minZ).setColor(r, g, bl, 0.2f);
-        b.addVertex(posMat, maxX, minY, minZ).setColor(r, g, bl, 0.2f);
-        b.addVertex(posMat, maxX, minY, maxZ).setColor(r, g, bl, 0.2f);
-        b.addVertex(posMat, minX, minY, maxZ).setColor(r, g, bl, 0.2f);
+        // ponytail: vertex() not addVertex() in Yarn 1.21.11
+        b.vertex(posMat, minX, minY, maxZ).setColor(r, g, bl, 0.2f);
+        b.vertex(posMat, maxX, minY, maxZ).setColor(r, g, bl, 0.2f);
+        b.vertex(posMat, maxX, maxY, maxZ).setColor(r, g, bl, 0.2f);
+        b.vertex(posMat, minX, maxY, maxZ).setColor(r, g, bl, 0.2f);
+        b.vertex(posMat, maxX, minY, minZ).setColor(r, g, bl, 0.2f);
+        b.vertex(posMat, minX, minY, minZ).setColor(r, g, bl, 0.2f);
+        b.vertex(posMat, minX, maxY, minZ).setColor(r, g, bl, 0.2f);
+        b.vertex(posMat, maxX, maxY, minZ).setColor(r, g, bl, 0.2f);
+        b.vertex(posMat, minX, minY, minZ).setColor(r, g, bl, 0.2f);
+        b.vertex(posMat, minX, minY, maxZ).setColor(r, g, bl, 0.2f);
+        b.vertex(posMat, minX, maxY, maxZ).setColor(r, g, bl, 0.2f);
+        b.vertex(posMat, minX, maxY, minZ).setColor(r, g, bl, 0.2f);
+        b.vertex(posMat, maxX, minY, maxZ).setColor(r, g, bl, 0.2f);
+        b.vertex(posMat, maxX, minY, minZ).setColor(r, g, bl, 0.2f);
+        b.vertex(posMat, maxX, maxY, minZ).setColor(r, g, bl, 0.2f);
+        b.vertex(posMat, maxX, maxY, maxZ).setColor(r, g, bl, 0.2f);
+        b.vertex(posMat, minX, maxY, maxZ).setColor(r, g, bl, 0.6f);
+        b.vertex(posMat, maxX, maxY, maxZ).setColor(r, g, bl, 0.6f);
+        b.vertex(posMat, maxX, maxY, minZ).setColor(r, g, bl, 0.6f);
+        b.vertex(posMat, minX, maxY, minZ).setColor(r, g, bl, 0.6f);
+        b.vertex(posMat, minX, minY, minZ).setColor(r, g, bl, 0.2f);
+        b.vertex(posMat, maxX, minY, minZ).setColor(r, g, bl, 0.2f);
+        b.vertex(posMat, maxX, minY, maxZ).setColor(r, g, bl, 0.2f);
+        b.vertex(posMat, minX, minY, maxZ).setColor(r, g, bl, 0.2f);
     }
 
     private static void renderHud(DrawContext ctx, RenderTickCounter tickCounter) {
