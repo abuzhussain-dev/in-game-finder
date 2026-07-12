@@ -122,3 +122,50 @@ Repo: `https://github.com/abuzhussain-dev/in-game-finder.git`
 ## Known Issues
 - CI Run 6 in progress — check result
 - Biome validation skipped for v1 (ship with caveat: ~5% false positives)
+
+---
+
+## Session 2026-07-12 — Continued from compaction
+
+### Context
+Session resumed after context compaction. Summary restored. Uncommitted changes from prior work:
+- `WaypointRenderer.java` — rewritten with correct Yarn 1.21.11+build.6 imports (BufferAllocator, BuiltBuffer, RenderLayer, MappableRingBuffer, RenderPipelines)
+- `gradle-wrapper.properties` — Gradle 8.11 → 9.6.1 (Loom 1.15.5 requires Gradle 9.2+ API)
+
+### Step 1: Verify uncertain Yarn API names via WebSearch
+Used WebSearch to verify 4 uncertain method names before committing:
+
+| Uncertain name | Search query | Result | Fix needed? |
+|---|---|---|---|
+| `client.getMainRenderTarget()` | "Yarn 1.21.11 getMainRenderTarget OR getFramebuffer" | **getFramebuffer()** in Yarn 1.21.11+build.3/4. `MinecraftClient.getFramebuffer()` returns `Framebuffer` | YES — changed to `client.getFramebuffer()` |
+| `MappableRingBuffer.currentBuffer()` | "MappableRingBuffer currentBuffer Yarn 1.21.11" | Confirmed: `currentBuffer()` exists on `MappableRingBuffer` in NeoForge + Yarn docs | No fix needed |
+| `encoder.mapBuffer()` | Implicit in MappableRingBuffer result | `CommandEncoder.mapBuffer()` exists | No fix needed |
+| `RenderSystem.getProjectionType().vertexSorting()` | Used in `sortQuads(allocator, ...)` | `BuiltBuffer.sortQuads(BufferAllocator, VertexSorting)` — signature confirmed compatible | No fix needed |
+
+**Sources:**
+- [OutputTarget (yarn 1.21.11+build.4 API)](https://maven.fabricmc.net/docs/yarn-1.21.11+build.4/net/minecraft/client/render/OutputTarget.html)
+- [MinecraftClient (yarn 1.21.11+build.3 API)](https://maven.fabricmc.net/docs/yarn-1.21.11%2Bbuild.3/net/minecraft/client/MinecraftClient.html)
+- [MappableRingBuffer (yarn 1.21.11+build.4 API)](https://maven.fabricmc.net/docs/yarn-1.21.11+build.4/net/minecraft/client/gl/MappableRingBuffer.html)
+- [MappableRingBuffer (NeoForge 1.21.11-21.11.42)](https://aldak.netlify.app/javadoc/1.21.11-21.11.x/net/minecraft/client/renderer/mappableringbuffer)
+
+### Step 2: Apply fix
+- **File:** `WaypointRenderer.java` — 2 edits
+  - `client.getMainRenderTarget().getColorTextureView()` → `client.getFramebuffer().getColorTextureView()`
+  - `client.getMainRenderTarget().getDepthTextureView()` → `client.getFramebuffer().getDepthTextureView()`
+
+### Step 3: Smart search for skills (user: "act as smart search for skills update yourself")
+- Used `smart_search` tool on `/root/in-game-finder` with query "Minecraft Fabric modding 1.21.11 Yarn rendering API skills" — **0 results** (no skill files in repo)
+- Used `smart_search` on `/root/.openclaude` — cancelled by system (MCP error)
+- Nothing to update skill-wise — no skill files found to improve
+
+### Step 4: Next actions
+- Update this file (CHECKPOINT.md) with all web search outputs ✓
+- Commit and push to trigger CI Run 7 (pending)
+- Monitor CI result (pending)
+
+### File Status (uncommitted)
+| File | Change | Ready |
+|------|--------|-------|
+| `mod/src/main/java/dev/seedfinder/waypoint/WaypointRenderer.java` | Yarn 1.21.11+build.6 imports + getFramebuffer fix | ✅ |
+| `mod/gradle/wrapper/gradle-wrapper.properties` | Gradle 8.11 → 9.6.1 | ✅ |
+| `CLAUDE.md` | Untracked (auto-generated) | ⏳ skip |

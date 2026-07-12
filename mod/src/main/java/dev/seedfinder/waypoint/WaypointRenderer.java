@@ -7,18 +7,18 @@ import com.mojang.blaze3d.platform.DepthTestFunction;
 import com.mojang.blaze3d.systems.CommandEncoder;
 import com.mojang.blaze3d.systems.RenderPass;
 import com.mojang.blaze3d.systems.RenderSystem;
+import com.mojang.blaze3d.vertex.VertexFormat;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.font.TextRenderer;
+import net.minecraft.client.gl.MappableRingBuffer;
+import net.minecraft.client.gl.RenderPipelines;
 import net.minecraft.client.gui.DrawContext;
 import net.minecraft.client.render.BufferBuilder;
-import net.minecraft.client.render.ByteBufferBuilder;
+import net.minecraft.client.render.BuiltBuffer;
 import net.minecraft.client.render.Camera;
-import net.minecraft.client.render.MappableRingBuffer;
-import net.minecraft.client.render.MeshData;
-import net.minecraft.client.render.RenderPipelines;
+import net.minecraft.client.render.RenderLayer;
 import net.minecraft.client.render.RenderTickCounter;
-import net.minecraft.client.render.RenderType;
-import net.minecraft.client.render.VertexFormat;
+import net.minecraft.client.util.BufferAllocator;
 import net.minecraft.client.util.math.MatrixStack;
 import net.minecraft.util.Identifier;
 import net.minecraft.util.math.BlockPos;
@@ -48,7 +48,7 @@ public final class WaypointRenderer {
             .build()
     );
 
-    private static final ByteBufferBuilder allocator = new ByteBufferBuilder(RenderType.SMALL_BUFFER_SIZE);
+    private static final BufferAllocator allocator = new BufferAllocator(RenderLayer.SMALL_BUFFER_SIZE);
     private BufferBuilder buffer;
     private static final Vector4f COLOR_MODULATOR = new Vector4f(1f, 1f, 1f, 1f);
     private static final Vector3f MODEL_OFFSET = new Vector3f();
@@ -102,8 +102,8 @@ public final class WaypointRenderer {
         matrices.pop();
 
         // --- draw phase ---
-        MeshData builtBuffer = buffer.buildOrThrow();
-        MeshData.DrawState drawParams = builtBuffer.drawState();
+        BuiltBuffer builtBuffer = buffer.end();
+        BuiltBuffer.DrawParameters drawParams = builtBuffer.getDrawParameters();
         VertexFormat format = drawParams.format();
 
         int vertexBufferSize = drawParams.vertexCount() * format.getVertexSize();
@@ -118,18 +118,18 @@ public final class WaypointRenderer {
 
         CommandEncoder encoder = RenderSystem.getDevice().createCommandEncoder();
         try (var mappedView = encoder.mapBuffer(
-                vertexBuffer.currentBuffer().slice(0, builtBuffer.vertexBuffer().remaining()), false, true)) {
-            MemoryUtil.memCopy(builtBuffer.vertexBuffer(), mappedView.data());
+                vertexBuffer.currentBuffer().slice(0, builtBuffer.getBuffer().remaining()), false, true)) {
+            MemoryUtil.memCopy(builtBuffer.getBuffer(), mappedView.data());
         }
 
         GpuBuffer vertices = vertexBuffer.currentBuffer();
         GpuBuffer indices;
         VertexFormat.IndexType indexType;
 
-        if (FILLED_THROUGH_WALLS.getVertexFormatMode() == VertexFormat.Mode.QUADS) {
+        if (FILLED_THROUGH_WALLS.getVertexFormatMode() == VertexFormat.DrawMode.QUADS) {
             builtBuffer.sortQuads(allocator, RenderSystem.getProjectionType().vertexSorting());
-            indices = FILLED_THROUGH_WALLS.getVertexFormat().uploadImmediateIndexBuffer(builtBuffer.indexBuffer());
-            indexType = builtBuffer.drawState().indexType();
+            indices = FILLED_THROUGH_WALLS.getVertexFormat().uploadImmediateIndexBuffer(builtBuffer.getSortedBuffer());
+            indexType = builtBuffer.getDrawParameters().indexType();
         } else {
             RenderSystem.AutoStorageIndexBuffer shapeIndexBuffer = RenderSystem.getSequentialBuffer(FILLED_THROUGH_WALLS.getVertexFormatMode());
             indices = shapeIndexBuffer.getBuffer(drawParams.indexCount());
@@ -143,9 +143,9 @@ public final class WaypointRenderer {
                 .createCommandEncoder()
                 .createRenderPass(
                     () -> "seedfinder waypoint rendering",
-                    client.getMainRenderTarget().getColorTextureView(),
+                    client.getFramebuffer().getColorTextureView(),
                     OptionalInt.empty(),
-                    client.getMainRenderTarget().getDepthTextureView(),
+                    client.getFramebuffer().getDepthTextureView(),
                     OptionalDouble.empty()
                 )) {
             pass.setPipeline(FILLED_THROUGH_WALLS);
