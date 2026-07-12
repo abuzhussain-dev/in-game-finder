@@ -273,5 +273,19 @@ Used WebSearch to verify 4 uncertain method names before committing:
 | `mod/src/main/java/dev/seedfinder/waypoint/WaypointRenderer.java` | 14 Yarn 1.21.11+build.6 fixes | ✅ |
 | `CHECKPOINT.md` | This update | ✅ |
 
+### CI Run 9 — FAILURE ❌ (2 remaining errors)
+- **Commit:** `4338843` ("Fix WaypointRenderer: 14 remaining Yarn 1.21.11+build.6 API fixes")
+- **Result:** 2 errors remaining
+  1. `Waypoint` class not found (line 156) — `Waypoint` is inner record `WaypointStore.Waypoint`, needs import
+  2. `WorldRenderEvents.AFTER_TRANSLUCENT` not found (line 55) — removed in Fabric API 0.141.x, renamed to `END_MAIN`
+
+**Web search sources (used to identify fixes):**
+- [WorldRenderEvents fabric-api 0.141.3+1.21.11](https://maven.fabricmc.net/docs/fabric-api-0.141.3+1.21.11/net/fabricmc/fabric/api/client/rendering/v1/world/WorldRenderEvents.html) — Available events: `START_MAIN`, `BEFORE_ENTITIES`, `AFTER_ENTITIES`, `BEFORE_DEBUG_RENDER`, `BEFORE_TRANSLUCENT`, `BEFORE_BLOCK_OUTLINE`, `AFTER_BLOCK_OUTLINE_EXTRACTION`, `END_EXTRACTION`, `END_MAIN`. NO `AFTER_TRANSLUCENT`.
+- [WorldRenderContext fabric-api 0.141.3+1.21.11](https://maven.fabricmc.net/docs/fabric-api-0.141.3+1.21.11/net/fabricmc/fabric/api/client/rendering/v1/world/WorldRenderContext.html) — Has `matrices()` (returns `PoseStack`), `consumers()`, `commandQueue()`. Inherits `worldState()` from `AbstractWorldRenderContext`. Confirmed compatible.
+
+### Fixes applied (commit `4338844`):
+1. Added `import dev.seedfinder.waypoint.WaypointStore.Waypoint;` — import inner record
+2. `WorldRenderEvents.AFTER_TRANSLUCENT` → `WorldRenderEvents.END_MAIN` — correct event name in Fabric API 0.141.x
+
 ### Next
-- Commit and push → CI Run 9 (pending)
+- Commit and push → CI Run 10 (pending)

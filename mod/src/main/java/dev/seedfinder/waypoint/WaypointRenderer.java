@@ -29,6 +29,7 @@ import org.joml.Vector3f;
 import org.joml.Vector4f;
 import org.lwjgl.system.MemoryUtil;
 
+import dev.seedfinder.waypoint.WaypointStore.Waypoint;
 import java.util.List;
 import java.util.OptionalDouble;
 import java.util.OptionalInt;
@@ -52,7 +53,7 @@ public final class WaypointRenderer {
     public static void register() {
         if (instance != null) return;
         instance = new WaypointRenderer();
-        WorldRenderEvents.AFTER_TRANSLUCENT.register(instance::extractAndDraw);
+        WorldRenderEvents.END_MAIN.register(instance::extractAndDraw);
         HudRenderCallback.EVENT.register(WaypointRenderer::renderHud);
     }
 
