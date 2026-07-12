@@ -17,3 +17,14 @@ When researching API versions, dependency versions, Minecraft version info, or a
 3. Verify from official sources: Fabric Maven, FabricMC GitHub, Minecraft Wiki
 4. For fabric-loom/fabric-api/fabric-loader versions, check the Fabric Maven repository directly
 5. Cross-reference between web search and maven-metadata.xml for version accuracy
+
+## Checkpoint Rule (MANDATORY)
+
+Every change, progress update, problem, or decision MUST be written to `CHECKPOINT.md` immediately. This ensures context survives compaction, crashes, or session restarts.
+
+Requirements:
+1. Update `CHECKPOINT.md` after EVERY change to any file — code, config, docs, anything
+2. Include: what changed, why, file paths, exact versions/branches, any errors encountered and their fixes
+3. At the start of every session, READ `CHECKPOINT.md` and the plan file before doing anything else
+4. Track all plan steps with clear ✅/🔄/❌ status markers
+5. If CI fails: record the error, the fix attempted, and whether the re-run passed

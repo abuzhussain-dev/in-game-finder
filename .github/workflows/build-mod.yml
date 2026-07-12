@@ -28,6 +28,8 @@ jobs:
 
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v4
+        with:
+          validate-wrapper: false
 
       - name: Generate Gradle wrapper
         run: gradle wrapper --gradle-version latest
