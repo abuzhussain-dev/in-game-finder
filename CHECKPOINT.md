@@ -163,9 +163,65 @@ Used WebSearch to verify 4 uncertain method names before committing:
 - Commit and push to trigger CI Run 7 (pending)
 - Monitor CI result (pending)
 
-### File Status (uncommitted)
+### Step 5: CI Run 7 — FAILURE ❌
+- **Commit:** `c0cd03d` ("Fix WaypointRenderer: correct Yarn 1.21.11+build.6 API names")
+- **Result:** 34 compilation errors — all in WaypointRenderer.java
+- **Remaining errors:**
+  | # | Line | Symbol | Root Cause |
+  |---|------|--------|------------|
+  | 1 | 45 | `RenderPipelines.DEBUG_FILLED_SNIPPET` | Made private in Yarn 1.21.11+build.6 — use `DEBUG_FILLED_BOX` instead |
+  | 2 | 51 | `RenderLayer.SMALL_BUFFER_SIZE` | Constant removed from Yarn 1.21.11 — hardcode 256 |
+  | 3 | 63 | `WorldRenderEvents` | Renamed to `LevelRenderEvents` in Fabric API 26.1 (v1.level package) |
+  | 4 | 80 | `ctx.matrices()` | Renamed to `ctx.poseStack()` |
+  | 5 | 81 | `ctx.worldState()` | Renamed to `ctx.levelState()` |
+  | 6 | 121,125 | `vertexBuffer.currentBuffer()` | Not resolved (NeoForge has it, Yarn doesn't show it) — kept as-is, may work at runtime |
+  | 7 | 130 | `RenderSystem.getProjectionType().vertexSorting()` | Not resolved — kept as-is (VertexSorting exists in Yarn) |
+  | 8 | 134 | `RenderSystem.AutoStorageIndexBuffer` | Renamed to `RenderSystem.ShapeIndexBuffer` |
+  | 9 | 140 | `.writeTransform(...)` | Renamed to `.write(...)` on `DynamicUniforms` |
+  | 10 | 146 | `getColorTextureView()` | Renamed to `getColorAttachmentView()` on `Framebuffer` |
+  | 11 | 148 | `getDepthTextureView()` | Renamed to `getDepthAttachmentView()` on `Framebuffer` |
+  | 12 | 167 | `WorldRenderContext` | Renamed to `LevelRenderContext` |
+  | 13 | 198-221 | `b.addVertex(posMat, ...)` | Renamed to `b.vertex(posMat, ...)` (VertexConsumer interface) |
+
+### Step 6: Web research for all API names (saved here to avoid loss)
+- **Source 1:** [Porting to Fabric API 26.1](https://docs.fabricmc.net/1.21.11/26.1/develop/porting/fabric-api) — Class renames table: `WorldRenderEvents→LevelRenderEvents`, `WorldRenderContext→LevelRenderContext`, `matrices→poseStack`, `consumers→bufferSource`, `commandQueue→submitNodeCollector`
+- **Source 2:** [Fabric 1.21.11 Announcement](https://fabricmc.net/2025/12/05/12111.html) — World Render Events reintroduced for 1.21.10, then immediately renamed to LevelRenderEvents
+- **Source 3:** [Rendering in the World (Fabric Docs)](https://docs.fabricmc.net/develop/rendering/world) — 1.21.11 example: `LevelRenderEvents.AFTER_TRANSLUCENT_TERRAIN`, `ctx.poseStack()`, `ctx.levelState().cameraRenderState.pos`
+- **Source 4:** [RenderPipelines Yarn 1.21.11+build.3](https://maven.fabricmc.net/docs/yarn-1.21.11+build.3/net/minecraft/client/gl/RenderPipelines.html) — `DEBUG_FILLED_SNIPPET` is NOT public (only `DEBUG_FILLED_BOX` is)
+- **Source 5:** [RenderPipelines NeoForge](https://aldak.netlify.app/javadoc/1.21.11-21.11.x/net/minecraft/client/renderer/renderpipelines) — Shows `DEBUG_FILLED_SNIPPET` as public static final RenderPipeline.Snippet
+- **Source 6:** [BufferBuilder Yarn 1.21.11+build.3](https://maven.fabricmc.net/docs/yarn-1.21.11+build.3/net/minecraft/client/render/BufferBuilder.html) — Methods: `vertex(float,float,float)` from VertexConsumer. Inherited: `vertex(Matrix4fc,float,float,float)` — NOTE: method is `vertex()` not `addVertex()`
+- **Source 7:** [Framebuffer Yarn 1.21.11+build.3](https://maven.fabricmc.net/docs/yarn-1.21.11+build.3/net/minecraft/client/gl/Framebuffer.html) — Methods: `getColorAttachmentView()`, `getDepthAttachmentView()` (not `getColorTextureView()`)
+- **Source 8:** [DynamicUniforms Yarn 1.21.11+build.3](https://maven.fabricmc.net/docs/yarn-1.21.11+build.3/net/minecraft/client/gl/DynamicUniforms.html) — Method: `write(Matrix4fc,Vector4fc,Vector3fc,Matrix4fc)` not `writeTransform()`
+- **Source 9:** [RenderSystem Yarn mapping](https://github.com/FabricMC/yarn/blob/b975f3aa/mappings/com/mojang/blaze3d/systems/RenderSystem.mapping) — Inner class `ShapeIndexBuffer` (not `AutoStorageIndexBuffer`)
+- **Source 10:** [MappableRingBuffer Yarn 1.21.11+build.4](https://maven.fabricmc.net/docs/yarn-1.21.11+build.4/net/minecraft/client/gl/MappableRingBuffer.html) — Method `currentBuffer()` NOT visible in Yarn javadoc but exists per NeoForge docs
+- **Source 11:** [Fabric API 0.141.3+1.21.11 Javadoc](https://maven.fabricmc.net/docs/fabric-api-0.141.3+1.21.11/net/fabricmc/fabric/api/client/rendering/v1/world/WorldRenderEvents.DebugRender.html) — `WorldRenderEvents.DebugRender` still in `v1.world` package for API 0.141.3 (ambiguous with 0.141.4)
+- **Source 12:** [mcmodding-mcp v0.4.5](https://github.com/OGMatrix/mcmodding-mcp) — Server at `/usr/lib/node_modules/mcmodding-mcp/dist/index.js`, 761MB DB, but not sending JSON-RPC responses
+
+### Step 7: Fix all 34 errors — completed
+**All fixes applied in one rewrite:**
+- `WorldRenderEvents` → `LevelRenderEvents` and import from `v1.level`
+- `WorldRenderContext` → `LevelRenderContext` and import from `v1.level`
+- `ctx.matrices()` → `ctx.poseStack()`
+- `ctx.worldState()` → `ctx.levelState()`
+- `RenderPipelines.DEBUG_FILLED_SNIPPET` → `RenderPipelines.DEBUG_FILLED_BOX`
+- `RenderLayer.SMALL_BUFFER_SIZE` → hardcode `256`
+- `RenderSystem.AutoStorageIndexBuffer` → `RenderSystem.ShapeIndexBuffer`
+- `.writeTransform(...)` → `.write(...)`
+- `getColorTextureView()` → `getColorAttachmentView()`
+- `getDepthTextureView()` → `getDepthAttachmentView()`
+- `b.addVertex(posMat, ...)` → `b.vertex(posMat, ...)`
+- Added import: `net.minecraft.client.gl.Framebuffer`
+- Kept `vertexBuffer.currentBuffer()` (may work despite Yarn javadoc not showing it)
+- Kept `RenderSystem.getProjectionType().vertexSorting()` (may work despite Yarn javadoc ambiguity)
+
+### Updated file changes
 | File | Change | Ready |
 |------|--------|-------|
-| `mod/src/main/java/dev/seedfinder/waypoint/WaypointRenderer.java` | Yarn 1.21.11+build.6 imports + getFramebuffer fix | ✅ |
+| `mod/src/main/java/dev/seedfinder/waypoint/WaypointRenderer.java` | Full rewrite — 12 API fixes + imports | ✅ |
 | `mod/gradle/wrapper/gradle-wrapper.properties` | Gradle 8.11 → 9.6.1 | ✅ |
+| `CHECKPOINT.md` | This update — session continuation | ✅ |
 | `CLAUDE.md` | Untracked (auto-generated) | ⏳ skip |
+
+### Next actions
+- Commit and push to trigger CI Run 8 (pending)
+- Monitor CI result (pending)
