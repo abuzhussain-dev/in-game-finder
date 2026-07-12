@@ -1,118 +1,224 @@
 package dev.seedfinder.waypoint;
 
+import com.mojang.blaze3d.buffers.GpuBuffer;
+import com.mojang.blaze3d.buffers.GpuBufferSlice;
+import com.mojang.blaze3d.pipeline.RenderPipeline;
+import com.mojang.blaze3d.platform.DepthTestFunction;
+import com.mojang.blaze3d.systems.CommandEncoder;
+import com.mojang.blaze3d.systems.RenderPass;
 import com.mojang.blaze3d.systems.RenderSystem;
+import com.mojang.blaze3d.vertex.BufferBuilder;
+import com.mojang.blaze3d.vertex.ByteBufferBuilder;
+import com.mojang.blaze3d.vertex.MeshData;
+import com.mojang.blaze3d.vertex.VertexFormat;
 import net.fabricmc.fabric.api.client.rendering.v1.HudRenderCallback;
-import net.fabricmc.fabric.api.client.rendering.v1.level.LevelRenderContext;
-import net.fabricmc.fabric.api.client.rendering.v1.level.LevelRenderEvents;
+import net.fabricmc.fabric.api.client.rendering.v1.world.WorldRenderContext;
+import net.fabricmc.fabric.api.client.rendering.v1.world.WorldRenderEvents;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.font.TextRenderer;
 import net.minecraft.client.gui.DrawContext;
-import net.minecraft.client.render.*;
+import net.minecraft.client.render.Camera;
+import net.minecraft.client.render.MappableRingBuffer;
+import net.minecraft.client.render.RenderPipelines;
+import net.minecraft.client.render.RenderTickCounter;
+import net.minecraft.client.render.rendertype.RenderType;
 import net.minecraft.client.util.math.MatrixStack;
+import net.minecraft.util.Identifier;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.util.math.Vec3d;
 import org.joml.Matrix4f;
+import org.joml.Matrix4fc;
+import org.joml.Vector3f;
+import org.joml.Vector4f;
+import org.lwjgl.system.MemoryUtil;
 
 import java.util.List;
+import java.util.OptionalDouble;
+import java.util.OptionalInt;
 
 public final class WaypointRenderer {
+    private static WaypointRenderer instance;
+    private static final Identifier MOD_ID = Identifier.of("seedfinder");
+
+    // ponytail: custom through-walls pipeline based on DEBUG_FILLED_SNIPPET
+    private static final RenderPipeline FILLED_THROUGH_WALLS = RenderPipelines.register(
+        RenderPipeline.builder(RenderPipelines.DEBUG_FILLED_SNIPPET)
+            .withLocation(Identifier.of("seedfinder", "pipeline/debug_filled_box_through_walls"))
+            .withDepthTestFunction(DepthTestFunction.NO_DEPTH_TEST)
+            .build()
+    );
+
+    private static final ByteBufferBuilder allocator = new ByteBufferBuilder(RenderType.SMALL_BUFFER_SIZE);
+    private BufferBuilder buffer;
+    private static final Vector4f COLOR_MODULATOR = new Vector4f(1f, 1f, 1f, 1f);
+    private static final Vector3f MODEL_OFFSET = new Vector3f();
+    private static final Matrix4f TEXTURE_MATRIX = new Matrix4f();
+    private MappableRingBuffer vertexBuffer;
+
     private WaypointRenderer() {}
 
     public static void register() {
-        LevelRenderEvents.AFTER_TRANSLUCENT_TERRAIN.register(WaypointRenderer::render);
+        if (instance != null) return;
+        instance = new WaypointRenderer();
+        WorldRenderEvents.BEFORE_TRANSLUCENT.register(instance::extractAndDraw);
         HudRenderCallback.EVENT.register(WaypointRenderer::renderHud);
     }
 
-    private static void render(LevelRenderContext ctx) {
+    private void extractAndDraw(WorldRenderContext ctx) {
         var client = MinecraftClient.getInstance();
         if (client.world == null || client.player == null) return;
-        Camera cam = client.gameRenderer.getCamera();
-        Vec3d camPos = cam.getPos();
 
-        var matrices = ctx.poseStack();
         var waypoints = WaypointStore.snapshot();
         if (waypoints.isEmpty()) return;
 
-        RenderSystem.disableDepthTest();
-        RenderSystem.enableBlend();
-        RenderSystem.defaultBlendFunc();
+        VertexFormat.Mode mode = FILLED_THROUGH_WALLS.getVertexFormatMode();
+        VertexFormat fmt = FILLED_THROUGH_WALLS.getVertexFormat();
+        if (buffer == null) {
+            buffer = new BufferBuilder(allocator, mode, fmt);
+        }
 
-        TextRenderer textRenderer = client.textRenderer;
+        MatrixStack matrices = ctx.matrices();
+        Vec3d camera = ctx.worldState().cameraRenderState.pos;
+
+        matrices.push();
+        matrices.translate(-camera.x, -camera.y, -camera.z);
 
         for (var wp : waypoints) {
             BlockPos p = wp.pos();
-            matrices.push();
-            matrices.translate(p.getX() - camPos.getX(), 0, p.getZ() - camPos.getZ());
-
             float r = ((wp.color() >> 16) & 0xFF) / 255f;
             float g = ((wp.color() >> 8) & 0xFF) / 255f;
             float b = (wp.color() & 0xFF) / 255f;
 
-            var builder = Tessellator.getInstance().begin(VertexFormat.DrawMode.QUADS, VertexFormats.POSITION_COLOR);
+            float minX = p.getX() - 0.5f;
+            float maxX = p.getX() + 0.5f;
+            float minZ = p.getZ() - 0.5f;
+            float maxZ = p.getZ() + 0.5f;
             float topY = 320f;
             float bottomY = 0f;
-            float half = 0.5f;
 
-            // Top quad
-            builder.addVertex(matrices.peek().getPositionMatrix(), -half, topY, -half).setColor(r, g, b, 0.6f);
-            builder.addVertex(matrices.peek().getPositionMatrix(), half, topY, -half).setColor(r, g, b, 0.6f);
-            builder.addVertex(matrices.peek().getPositionMatrix(), half, topY, half).setColor(r, g, b, 0.6f);
-            builder.addVertex(matrices.peek().getPositionMatrix(), -half, topY, half).setColor(r, g, b, 0.6f);
+            renderFilledBox(matrices.last().pose(), buffer, minX, bottomY, minZ, maxX, topY, maxZ, r, g, b);
+        }
 
-            // North face
-            builder.addVertex(matrices.peek().getPositionMatrix(), -half, bottomY, -half).setColor(r, g, b, 0.2f);
-            builder.addVertex(matrices.peek().getPositionMatrix(), half, bottomY, -half).setColor(r, g, b, 0.2f);
-            builder.addVertex(matrices.peek().getPositionMatrix(), half, topY, -half).setColor(r, g, b, 0.2f);
-            builder.addVertex(matrices.peek().getPositionMatrix(), -half, topY, -half).setColor(r, g, b, 0.2f);
+        matrices.pop();
 
-            // South face
-            builder.addVertex(matrices.peek().getPositionMatrix(), half, bottomY, half).setColor(r, g, b, 0.2f);
-            builder.addVertex(matrices.peek().getPositionMatrix(), -half, bottomY, half).setColor(r, g, b, 0.2f);
-            builder.addVertex(matrices.peek().getPositionMatrix(), -half, topY, half).setColor(r, g, b, 0.2f);
-            builder.addVertex(matrices.peek().getPositionMatrix(), half, topY, half).setColor(r, g, b, 0.2f);
+        // --- draw phase ---
+        MeshData builtBuffer = buffer.buildOrThrow();
+        MeshData.DrawState drawParams = builtBuffer.drawState();
+        VertexFormat format = drawParams.format();
 
-            // East face
-            builder.addVertex(matrices.peek().getPositionMatrix(), half, bottomY, -half).setColor(r, g, b, 0.2f);
-            builder.addVertex(matrices.peek().getPositionMatrix(), half, bottomY, half).setColor(r, g, b, 0.2f);
-            builder.addVertex(matrices.peek().getPositionMatrix(), half, topY, half).setColor(r, g, b, 0.2f);
-            builder.addVertex(matrices.peek().getPositionMatrix(), half, topY, -half).setColor(r, g, b, 0.2f);
+        int vertexBufferSize = drawParams.vertexCount() * format.getVertexSize();
+        if (vertexBuffer == null || vertexBuffer.size() < vertexBufferSize) {
+            if (vertexBuffer != null) vertexBuffer.close();
+            vertexBuffer = new MappableRingBuffer(
+                () -> "seedfinder waypoint render",
+                GpuBuffer.USAGE_VERTEX | GpuBuffer.USAGE_MAP_WRITE,
+                vertexBufferSize
+            );
+        }
 
-            // West face
-            builder.addVertex(matrices.peek().getPositionMatrix(), -half, bottomY, half).setColor(r, g, b, 0.2f);
-            builder.addVertex(matrices.peek().getPositionMatrix(), -half, bottomY, -half).setColor(r, g, b, 0.2f);
-            builder.addVertex(matrices.peek().getPositionMatrix(), -half, topY, -half).setColor(r, g, b, 0.2f);
-            builder.addVertex(matrices.peek().getPositionMatrix(), -half, topY, half).setColor(r, g, b, 0.2f);
+        CommandEncoder encoder = RenderSystem.getDevice().createCommandEncoder();
+        try (var mappedView = encoder.mapBuffer(
+                vertexBuffer.currentBuffer().slice(0, builtBuffer.vertexBuffer().remaining()), false, true)) {
+            MemoryUtil.memCopy(builtBuffer.vertexBuffer(), mappedView.data());
+        }
 
-            // ponytail: drawWithShader new API, removed setShader calls
-            RenderSystem.setShader(GameRenderer::getPositionColorShader);
-            BufferUploader.drawWithShader(builder.buildOrThrow());
+        GpuBuffer vertices = vertexBuffer.currentBuffer();
+        GpuBuffer indices;
+        VertexFormat.IndexType indexType;
 
-            matrices.pop();
+        if (FILLED_THROUGH_WALLS.getVertexFormatMode() == VertexFormat.Mode.QUADS) {
+            builtBuffer.sortQuads(allocator, RenderSystem.getProjectionType().vertexSorting());
+            indices = FILLED_THROUGH_WALLS.getVertexFormat().uploadImmediateIndexBuffer(builtBuffer.indexBuffer());
+            indexType = builtBuffer.drawState().indexType();
+        } else {
+            RenderSystem.AutoStorageIndexBuffer shapeIndexBuffer = RenderSystem.getSequentialBuffer(FILLED_THROUGH_WALLS.getVertexFormatMode());
+            indices = shapeIndexBuffer.getBuffer(drawParams.indexCount());
+            indexType = shapeIndexBuffer.type();
+        }
 
-            // Label floating above the beam top
+        GpuBufferSlice dynamicTransforms = RenderSystem.getDynamicUniforms()
+            .writeTransform(RenderSystem.getModelViewMatrix(), COLOR_MODULATOR, MODEL_OFFSET, TEXTURE_MATRIX);
+
+        try (RenderPass pass = RenderSystem.getDevice()
+                .createCommandEncoder()
+                .createRenderPass(
+                    () -> "seedfinder waypoint rendering",
+                    client.getMainRenderTarget().getColorTextureView(),
+                    OptionalInt.empty(),
+                    client.getMainRenderTarget().getDepthTextureView(),
+                    OptionalDouble.empty()
+                )) {
+            pass.setPipeline(FILLED_THROUGH_WALLS);
+            RenderSystem.bindDefaultUniforms(pass);
+            pass.setUniform("DynamicTransforms", dynamicTransforms);
+            pass.setVertexBuffer(0, vertices);
+            pass.setIndexBuffer(indices, indexType);
+            pass.drawIndexed(0, 0, drawParams.indexCount(), 1);
+        }
+
+        builtBuffer.close();
+        vertexBuffer.rotate();
+        buffer = null;
+
+        // --- labels ---
+        drawLabels(ctx, waypoints, matrices, camera);
+    }
+
+    private static void drawLabels(WorldRenderContext ctx, List<Waypoint> waypoints, MatrixStack matrices, Vec3d camPos) {
+        var client = MinecraftClient.getInstance();
+        if (client.player == null) return;
+        Camera cam = client.gameRenderer.getCamera();
+        TextRenderer textRenderer = client.textRenderer;
+
+        for (var wp : waypoints) {
+            BlockPos p = wp.pos();
+            float topY = 320f;
+
             matrices.push();
-            Vec3d topPos = new Vec3d(p.getX(), topY + 2.0, p.getZ());
-            Vec3d labelPos = topPos.subtract(camPos);
-            matrices.translate(labelPos.x, labelPos.y, labelPos.z);
+            matrices.translate(p.getX() - camPos.x, topY + 2.0 - camPos.y, p.getZ() - camPos.z);
             matrices.multiply(cam.getRotation());
 
             double dist = Math.sqrt(client.player.getBlockPos().getSquaredDistance(p));
             String label = wp.label() + " " + (int) dist + "m";
 
-            float scale = 0.025f;
-            matrices.scale(scale, scale, scale);
+            matrices.scale(0.025f, 0.025f, 0.025f);
             int textW = textRenderer.getWidth(label);
             float textX = -textW / 2f;
 
-            Matrix4f posMat = matrices.peek().getPositionMatrix();
-            textRenderer.draw(label, textX, 0, 0xFFFFFF, true, posMat, client.getBufferBuilders().getEntityVertexConsumers(),
+            textRenderer.draw(label, textX, 0, 0xFFFFFF, true, matrices.peek().getPositionMatrix(),
+                client.getBufferBuilders().getEntityVertexConsumers(),
                 TextRenderer.TextLayerType.SEE_THROUGH, 0x000000, 0xF000F0);
 
             matrices.pop();
         }
+    }
 
-        RenderSystem.enableDepthTest();
-        RenderSystem.disableBlend();
+    private static void renderFilledBox(Matrix4fc posMat, BufferBuilder b, float minX, float minY, float minZ,
+                                         float maxX, float maxY, float maxZ, float r, float g, float bl) {
+        b.addVertex(posMat, minX, minY, maxZ).setColor(r, g, bl, 0.2f);
+        b.addVertex(posMat, maxX, minY, maxZ).setColor(r, g, bl, 0.2f);
+        b.addVertex(posMat, maxX, maxY, maxZ).setColor(r, g, bl, 0.2f);
+        b.addVertex(posMat, minX, maxY, maxZ).setColor(r, g, bl, 0.2f);
+        b.addVertex(posMat, maxX, minY, minZ).setColor(r, g, bl, 0.2f);
+        b.addVertex(posMat, minX, minY, minZ).setColor(r, g, bl, 0.2f);
+        b.addVertex(posMat, minX, maxY, minZ).setColor(r, g, bl, 0.2f);
+        b.addVertex(posMat, maxX, maxY, minZ).setColor(r, g, bl, 0.2f);
+        b.addVertex(posMat, minX, minY, minZ).setColor(r, g, bl, 0.2f);
+        b.addVertex(posMat, minX, minY, maxZ).setColor(r, g, bl, 0.2f);
+        b.addVertex(posMat, minX, maxY, maxZ).setColor(r, g, bl, 0.2f);
+        b.addVertex(posMat, minX, maxY, minZ).setColor(r, g, bl, 0.2f);
+        b.addVertex(posMat, maxX, minY, maxZ).setColor(r, g, bl, 0.2f);
+        b.addVertex(posMat, maxX, minY, minZ).setColor(r, g, bl, 0.2f);
+        b.addVertex(posMat, maxX, maxY, minZ).setColor(r, g, bl, 0.2f);
+        b.addVertex(posMat, maxX, maxY, maxZ).setColor(r, g, bl, 0.2f);
+        b.addVertex(posMat, minX, maxY, maxZ).setColor(r, g, bl, 0.6f);
+        b.addVertex(posMat, maxX, maxY, maxZ).setColor(r, g, bl, 0.6f);
+        b.addVertex(posMat, maxX, maxY, minZ).setColor(r, g, bl, 0.6f);
+        b.addVertex(posMat, minX, maxY, minZ).setColor(r, g, bl, 0.6f);
+        b.addVertex(posMat, minX, minY, minZ).setColor(r, g, bl, 0.2f);
+        b.addVertex(posMat, maxX, minY, minZ).setColor(r, g, bl, 0.2f);
+        b.addVertex(posMat, maxX, minY, maxZ).setColor(r, g, bl, 0.2f);
+        b.addVertex(posMat, minX, minY, maxZ).setColor(r, g, bl, 0.2f);
     }
 
     private static void renderHud(DrawContext ctx, RenderTickCounter tickCounter) {
@@ -137,11 +243,10 @@ public final class WaypointRenderer {
         String dir = cardinalDirection(playerPos, best.pos());
         String text = "\u2192 " + best.label() + " " + (int) dist + "m [" + dir + "]";
 
-        int x = 10;
-        int y = 10;
         int color = best.color();
-        ctx.fill(x - 2, y - 2, x + client.textRenderer.getWidth(text) + 2, y + 10 + 2, 0x88000000);
-        ctx.drawText(client.textRenderer, text, x, y, color, true);
+        int w = client.textRenderer.getWidth(text);
+        ctx.fill(8, 8, 10 + w + 2, 20, 0x88000000);
+        ctx.drawText(client.textRenderer, text, 10, 10, color, true);
     }
 
     private static String cardinalDirection(BlockPos from, BlockPos to) {
