@@ -279,13 +279,16 @@ Used WebSearch to verify 4 uncertain method names before committing:
   1. `Waypoint` class not found (line 156) — `Waypoint` is inner record `WaypointStore.Waypoint`, needs import
   2. `WorldRenderEvents.AFTER_TRANSLUCENT` not found (line 55) — removed in Fabric API 0.141.x, renamed to `END_MAIN`
 
-**Web search sources (used to identify fixes):**
-- [WorldRenderEvents fabric-api 0.141.3+1.21.11](https://maven.fabricmc.net/docs/fabric-api-0.141.3+1.21.11/net/fabricmc/fabric/api/client/rendering/v1/world/WorldRenderEvents.html) — Available events: `START_MAIN`, `BEFORE_ENTITIES`, `AFTER_ENTITIES`, `BEFORE_DEBUG_RENDER`, `BEFORE_TRANSLUCENT`, `BEFORE_BLOCK_OUTLINE`, `AFTER_BLOCK_OUTLINE_EXTRACTION`, `END_EXTRACTION`, `END_MAIN`. NO `AFTER_TRANSLUCENT`.
-- [WorldRenderContext fabric-api 0.141.3+1.21.11](https://maven.fabricmc.net/docs/fabric-api-0.141.3+1.21.11/net/fabricmc/fabric/api/client/rendering/v1/world/WorldRenderContext.html) — Has `matrices()` (returns `PoseStack`), `consumers()`, `commandQueue()`. Inherits `worldState()` from `AbstractWorldRenderContext`. Confirmed compatible.
+### CI Run 10 — Compilation PASSED, jar FAILED ❌
+- **Commit:** `9f1922d` ("Fix WaypointRenderer: 2 remaining Yarn 1.21.11+build.6 API errors")
+- **Result:** `:compileJava` ✅, `:processResources` ✅, `:classes` ✅, **`:jar FAILED`** ❌
+- **Error:** `Could not get unknown property 'archivesName'` in Gradle 9.6.1
+- **Root cause:** Gradle 9.6.1 removed implicit `archivesName` from `jar {}` copy spec
+- **Fix:** `build.gradle:43` — `${archivesName}` → `${project.archives_base_name}`
 
-### Fixes applied (commit `4338844`):
-1. Added `import dev.seedfinder.waypoint.WaypointStore.Waypoint;` — import inner record
-2. `WorldRenderEvents.AFTER_TRANSLUCENT` → `WorldRenderEvents.END_MAIN` — correct event name in Fabric API 0.141.x
+### Fixes applied:
+1. `WaypointRenderer.java` — added `WaypointStore.Waypoint` import, `AFTER_TRANSLUCENT` → `END_MAIN`
+2. `build.gradle:43` — `${archivesName}` → `${project.archives_base_name}` (Gradle 9.x compat)
 
 ### Next
-- Commit and push → CI Run 10 (pending)
+- Commit and push → CI Run 11
