@@ -10,6 +10,7 @@ import net.fabricmc.fabric.api.client.keybinding.v1.KeyBindingHelper;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.option.KeyBinding;
 import net.minecraft.client.util.InputUtil;
+import net.minecraft.util.Identifier;
 import org.lwjgl.glfw.GLFW;
 
 public class SeedFinderMod implements ClientModInitializer {
@@ -25,7 +26,7 @@ public class SeedFinderMod implements ClientModInitializer {
             "key.seedfinder.open",
             InputUtil.Type.KEYSYM,
             GLFW.GLFW_KEY_G,
-            "key.categories.seedfinder"
+            KeyBinding.Category.create(Identifier.of("key.categories.seedfinder"))
         ));
 
         ClientTickEvents.END_CLIENT_TICK.register(client -> {

@@ -1,9 +1,9 @@
 package dev.seedfinder.waypoint;
 
 import com.mojang.blaze3d.systems.RenderSystem;
-import net.fabricmc.fabric.api.client.rendering.v1.WorldRenderEvents;
-import net.fabricmc.fabric.api.client.rendering.v1.WorldRenderContext;
 import net.fabricmc.fabric.api.client.rendering.v1.HudRenderCallback;
+import net.fabricmc.fabric.api.client.rendering.v1.level.LevelRenderContext;
+import net.fabricmc.fabric.api.client.rendering.v1.level.LevelRenderEvents;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.font.TextRenderer;
 import net.minecraft.client.gui.DrawContext;
@@ -15,32 +15,27 @@ import org.joml.Matrix4f;
 
 import java.util.List;
 
-/**
- * Renders colored beacon beams + labels for waypoints, plus a HUD indicator
- * for the nearest waypoint direction and distance.
- */
 public final class WaypointRenderer {
     private WaypointRenderer() {}
 
     public static void register() {
-        WorldRenderEvents.AFTER_TRANSLUCENT.register(WaypointRenderer::render);
+        LevelRenderEvents.AFTER_TRANSLUCENT_TERRAIN.register(WaypointRenderer::render);
         HudRenderCallback.EVENT.register(WaypointRenderer::renderHud);
     }
 
-    private static void render(WorldRenderContext ctx) {
+    private static void render(LevelRenderContext ctx) {
         var client = MinecraftClient.getInstance();
         if (client.world == null || client.player == null) return;
         Camera cam = client.gameRenderer.getCamera();
         Vec3d camPos = cam.getPos();
 
-        var matrices = ctx.matrixStack();
+        var matrices = ctx.poseStack();
         var waypoints = WaypointStore.snapshot();
         if (waypoints.isEmpty()) return;
 
         RenderSystem.disableDepthTest();
         RenderSystem.enableBlend();
         RenderSystem.defaultBlendFunc();
-        RenderSystem.setShader(GameRenderer::getPositionColorProgram);
 
         TextRenderer textRenderer = client.textRenderer;
 
@@ -49,7 +44,6 @@ public final class WaypointRenderer {
             matrices.push();
             matrices.translate(p.getX() - camPos.getX(), 0, p.getZ() - camPos.getZ());
 
-            // Colored beam from y=0 to y=320
             float r = ((wp.color() >> 16) & 0xFF) / 255f;
             float g = ((wp.color() >> 8) & 0xFF) / 255f;
             float b = (wp.color() & 0xFF) / 255f;
@@ -60,36 +54,38 @@ public final class WaypointRenderer {
             float half = 0.5f;
 
             // Top quad
-            builder.vertex(matrices.peek().getPositionMatrix(), -half, topY, -half).color(r, g, b, 0.6f);
-            builder.vertex(matrices.peek().getPositionMatrix(), half, topY, -half).color(r, g, b, 0.6f);
-            builder.vertex(matrices.peek().getPositionMatrix(), half, topY, half).color(r, g, b, 0.6f);
-            builder.vertex(matrices.peek().getPositionMatrix(), -half, topY, half).color(r, g, b, 0.6f);
+            builder.addVertex(matrices.peek().getPositionMatrix(), -half, topY, -half).setColor(r, g, b, 0.6f);
+            builder.addVertex(matrices.peek().getPositionMatrix(), half, topY, -half).setColor(r, g, b, 0.6f);
+            builder.addVertex(matrices.peek().getPositionMatrix(), half, topY, half).setColor(r, g, b, 0.6f);
+            builder.addVertex(matrices.peek().getPositionMatrix(), -half, topY, half).setColor(r, g, b, 0.6f);
 
             // North face
-            builder.vertex(matrices.peek().getPositionMatrix(), -half, bottomY, -half).color(r, g, b, 0.2f);
-            builder.vertex(matrices.peek().getPositionMatrix(), half, bottomY, -half).color(r, g, b, 0.2f);
-            builder.vertex(matrices.peek().getPositionMatrix(), half, topY, -half).color(r, g, b, 0.2f);
-            builder.vertex(matrices.peek().getPositionMatrix(), -half, topY, -half).color(r, g, b, 0.2f);
+            builder.addVertex(matrices.peek().getPositionMatrix(), -half, bottomY, -half).setColor(r, g, b, 0.2f);
+            builder.addVertex(matrices.peek().getPositionMatrix(), half, bottomY, -half).setColor(r, g, b, 0.2f);
+            builder.addVertex(matrices.peek().getPositionMatrix(), half, topY, -half).setColor(r, g, b, 0.2f);
+            builder.addVertex(matrices.peek().getPositionMatrix(), -half, topY, -half).setColor(r, g, b, 0.2f);
 
             // South face
-            builder.vertex(matrices.peek().getPositionMatrix(), half, bottomY, half).color(r, g, b, 0.2f);
-            builder.vertex(matrices.peek().getPositionMatrix(), -half, bottomY, half).color(r, g, b, 0.2f);
-            builder.vertex(matrices.peek().getPositionMatrix(), -half, topY, half).color(r, g, b, 0.2f);
-            builder.vertex(matrices.peek().getPositionMatrix(), half, topY, half).color(r, g, b, 0.2f);
+            builder.addVertex(matrices.peek().getPositionMatrix(), half, bottomY, half).setColor(r, g, b, 0.2f);
+            builder.addVertex(matrices.peek().getPositionMatrix(), -half, bottomY, half).setColor(r, g, b, 0.2f);
+            builder.addVertex(matrices.peek().getPositionMatrix(), -half, topY, half).setColor(r, g, b, 0.2f);
+            builder.addVertex(matrices.peek().getPositionMatrix(), half, topY, half).setColor(r, g, b, 0.2f);
 
             // East face
-            builder.vertex(matrices.peek().getPositionMatrix(), half, bottomY, -half).color(r, g, b, 0.2f);
-            builder.vertex(matrices.peek().getPositionMatrix(), half, bottomY, half).color(r, g, b, 0.2f);
-            builder.vertex(matrices.peek().getPositionMatrix(), half, topY, half).color(r, g, b, 0.2f);
-            builder.vertex(matrices.peek().getPositionMatrix(), half, topY, -half).color(r, g, b, 0.2f);
+            builder.addVertex(matrices.peek().getPositionMatrix(), half, bottomY, -half).setColor(r, g, b, 0.2f);
+            builder.addVertex(matrices.peek().getPositionMatrix(), half, bottomY, half).setColor(r, g, b, 0.2f);
+            builder.addVertex(matrices.peek().getPositionMatrix(), half, topY, half).setColor(r, g, b, 0.2f);
+            builder.addVertex(matrices.peek().getPositionMatrix(), half, topY, -half).setColor(r, g, b, 0.2f);
 
             // West face
-            builder.vertex(matrices.peek().getPositionMatrix(), -half, bottomY, half).color(r, g, b, 0.2f);
-            builder.vertex(matrices.peek().getPositionMatrix(), -half, bottomY, -half).color(r, g, b, 0.2f);
-            builder.vertex(matrices.peek().getPositionMatrix(), -half, topY, -half).color(r, g, b, 0.2f);
-            builder.vertex(matrices.peek().getPositionMatrix(), -half, topY, half).color(r, g, b, 0.2f);
+            builder.addVertex(matrices.peek().getPositionMatrix(), -half, bottomY, half).setColor(r, g, b, 0.2f);
+            builder.addVertex(matrices.peek().getPositionMatrix(), -half, bottomY, -half).setColor(r, g, b, 0.2f);
+            builder.addVertex(matrices.peek().getPositionMatrix(), -half, topY, -half).setColor(r, g, b, 0.2f);
+            builder.addVertex(matrices.peek().getPositionMatrix(), -half, topY, half).setColor(r, g, b, 0.2f);
 
-            BufferRenderer.drawWithGlobalProgram(builder.end());
+            // ponytail: drawWithShader new API, removed setShader calls
+            RenderSystem.setShader(GameRenderer::getPositionColorShader);
+            BufferUploader.drawWithShader(builder.buildOrThrow());
 
             matrices.pop();
 
@@ -119,7 +115,7 @@ public final class WaypointRenderer {
         RenderSystem.disableBlend();
     }
 
-    private static void renderHud(DrawContext ctx, float tickDelta) {
+    private static void renderHud(DrawContext ctx, RenderTickCounter tickCounter) {
         var client = MinecraftClient.getInstance();
         if (client.world == null || client.player == null) return;
 
