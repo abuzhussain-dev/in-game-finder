@@ -30,7 +30,7 @@ jobs:
         uses: gradle/actions/setup-gradle@v4
 
       - name: Generate Gradle wrapper
-        run: gradle wrapper --gradle-version 8.10
+        run: gradle wrapper --gradle-version latest
 
       - name: Build mod jar
         run: ./gradlew build --stacktrace
