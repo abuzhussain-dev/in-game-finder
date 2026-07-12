@@ -1,0 +1,19 @@
+{
+  "schemaVersion": 1,
+  "id": "seedfinder",
+  "version": "${version}",
+  "name": "SeedFinder",
+  "description": "Find any vanilla structure in-game from a known seed.",
+  "authors": ["you"],
+  "license": "MIT",
+  "environment": "client",
+  "entrypoints": {
+    "client": ["dev.seedfinder.SeedFinderMod"]
+  },
+  "depends": {
+    "fabricloader": ">=0.16.0",
+    "fabric-api": "*",
+    "minecraft": "~1.21.1",
+    "java": ">=21"
+  }
+}
