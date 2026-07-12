@@ -1,0 +1,12 @@
+{
+  "key.seedfinder.open": "Open SeedFinder",
+  "key.categories.seedfinder": "SeedFinder",
+  "seedfinder.screen.title": "SeedFinder — pick a structure",
+  "seedfinder.screen.search": "Search…",
+  "seedfinder.screen.close": "Close",
+  "seedfinder.screen.clear_waypoints": "Clear waypoints",
+  "seedfinder.msg.no_seed": "No seed set. Run: /seedfinder seed <long>",
+  "seedfinder.msg.seed_set": "Seed saved.",
+  "seedfinder.msg.not_found": "No %s found within search radius.",
+  "seedfinder.msg.found": "Nearest %s: X=%d Z=%d (%d blocks %s)"
+}
