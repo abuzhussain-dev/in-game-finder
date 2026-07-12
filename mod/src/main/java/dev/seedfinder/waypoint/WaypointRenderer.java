@@ -2,8 +2,10 @@ package dev.seedfinder.waypoint;
 
 import com.mojang.blaze3d.systems.RenderSystem;
 import net.fabricmc.fabric.api.client.rendering.v1.WorldRenderEvents;
+import net.fabricmc.fabric.api.client.rendering.v1.WorldRenderContext;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.render.BufferBuilder;
+import net.minecraft.client.render.BufferRenderer;
 import net.minecraft.client.render.Camera;
 import net.minecraft.client.render.GameRenderer;
 import net.minecraft.client.render.Tessellator;
@@ -25,7 +27,7 @@ public final class WaypointRenderer {
         WorldRenderEvents.AFTER_TRANSLUCENT.register(WaypointRenderer::render);
     }
 
-    private static void render(WorldRenderContextCompat ctx) {
+    private static void render(WorldRenderContext ctx) {
         var client = MinecraftClient.getInstance();
         if (client.world == null || client.player == null) return;
         Camera cam = client.gameRenderer.getCamera();
@@ -87,6 +89,4 @@ public final class WaypointRenderer {
         BufferRenderer.drawWithGlobalProgram(buf.end());
     }
 
-    // Small compat shim: WorldRenderContext type used inline to keep imports tidy.
-    public interface WorldRenderContextCompat extends net.fabricmc.fabric.api.client.rendering.v1.WorldRenderContext {}
 }
