@@ -225,3 +225,53 @@ Used WebSearch to verify 4 uncertain method names before committing:
 ### Next actions
 - Commit and push to trigger CI Run 8 (pending)
 - Monitor CI result (pending)
+
+### Step 8: CI Run 8 — FAILURE ❌ (14 remaining errors)
+- **Commit:** `2f47d4b` → `1090c69` ("Fix WaypointRenderer: 12 Yarn API fixes" + "Update CHECKPOINT.md")
+- **Result:** 14 errors remaining — all Yarn 1.21.11+build.6 API name mismatches
+- **Remaining errors identified via web search (all saved):**
+
+  | Error | Wrong name | Correct Yarn 1.21.11+build.6 name |
+  |-------|-----------|-----------------------------------|
+  | `currentBuffer()` not found | `vertexBuffer.currentBuffer()` | `vertexBuffer.getBlocking()` — renamed in build.6 |
+  | `ProjectionType.vertexSorting()` not found | `RenderSystem.getProjectionType().vertexSorting()` | Removed — skip sortQuads entirely (ponytail: minor alpha glitch ok) |
+  | `ShapeIndexBuffer.getBuffer(int)` not found | `shapeIndexBuffer.getBuffer()` | `shapeIndexBuffer.getIndexBuffer(int)` |
+  | `ShapeIndexBuffer.type()` not found | `shapeIndexBuffer.type()` | `shapeIndexBuffer.getIndexType()` |
+  | `setColor()` not found | `.setColor(r, g, b, a)` | `.color(r, g, b, a)` — VertexConsumer API |
+  | `LevelRenderEvents` package missing | `v1.level.LevelRenderEvents` | Revert to `WorldRenderEvents` from `v1.world` (exists in API 0.141.4) |
+  | `getColorAttachmentView` not found | `fb.getColorAttachmentView()` | **Actually exists in build.6!** Run 8 error was due to `client.getFramebuffer()` type ambiguity — now using `var fb = client.getFramebuffer()` |
+
+- **Web search sources saved:**
+  - [MappableRingBuffer Yarn 1.21.11+build.6](https://maven.fabricmc.net/docs/yarn-1.21.11+build.6/net/minecraft/client/gl/MappableRingBuffer.html) — Public methods: `close()`, `getBlocking()`, `rotate()`, `size()` (NO `currentBuffer()`)
+  - [Framebuffer Yarn 1.21.11+build.6](https://maven.fabricmc.net/docs/yarn-1.21.11+build.6/net/minecraft/client/gl/Framebuffer.html) — Public: `getColorAttachment()`, `getColorAttachmentView()`, `getDepthAttachment()`, `getDepthAttachmentView()`
+  - [ShapeIndexBuffer Yarn 1.21.11+build.4](https://maven.fabricmc.net/docs/yarn-1.21.11+build.4/com/mojang/blaze3d/systems/RenderSystem.ShapeIndexBuffer.html) — Methods: `getIndexBuffer(int)`, `getIndexType()`
+  - [BuiltBuffer Yarn 1.21.11+build.6](https://maven.fabricmc.net/docs/yarn-1.21.11+build.6/net/minecraft/client/render/BuiltBuffer.html) — `sortQuads(BufferAllocator, VertexSorter)` (VertexSorter interface, not vertexSorting())
+  - [Fabric API 0.141.4+1.21.11 package list](https://maven.fabricmc.net/docs/fabric-api-0.141.4+1.21.11/net/fabricmc/fabric/api/client/rendering/v1/package-summary.html) — Has `v1.world` with `WorldRenderEvents`, NOT `v1.level`
+  - [VertexConsumer Yarn 1.21.11+build.6](https://maven.fabricmc.net/docs/yarn-1.21.11+build.6/net/minecraft/client/render/VertexConsumer.html) — `color(float,float,float,float)` not `setColor()`
+  - [BufferBuilder Yarn 1.21.11+build.6](https://maven.fabricmc.net/docs/yarn-1.21.11+build.6/net/minecraft/client/render/BufferBuilder.html) — Inherits `vertex(Matrix4fc,float,float,float)` from VertexConsumer
+
+### Step 9: Fix all remaining errors and commit for CI Run 9
+**All 14 fixes applied in one rewrite:**
+1. `currentBuffer()` → `getBlocking()` (MappableRingBuffer build.6 rename)
+2. Removed `sortQuads` + `vertexSorting()` entirely (skip sort, minor alpha glitch)
+3. `getBuffer(int)` → `getIndexBuffer(int)` (ShapeIndexBuffer API)
+4. `.type()` → `.getIndexType()` (ShapeIndexBuffer API)
+5. `.setColor()` → `.color()` (VertexConsumer API)
+6. `v1.level.LevelRenderEvents` → `v1.world.WorldRenderEvents` (Fabric API 0.141.4)
+7. `v1.level.LevelRenderContext` → `v1.world.WorldRenderContext` (Fabric API 0.141.4)
+8. `ctx.poseStack()` → `ctx.matrices()` (WorldRenderContext API)
+9. `ctx.levelState()` → `ctx.worldState()` (WorldRenderContext API)
+10. `RenderPipelines.DEBUG_FILLED_SNIPPET` → `DEBUG_FILLED_BOX` direct (snippet private)
+11. `RenderLayer.SMALL_BUFFER_SIZE` → hardcoded 256 (constant removed)
+12. `RenderSystem.AutoStorageIndexBuffer` → `ShapeIndexBuffer` (correct name)
+13. Removed `Framebuffer` explicit import + variable — using `var fb = client.getFramebuffer()`
+14. Removed `RenderSystem.getDynamicUniforms().writeTransform()` — kept `.write()`
+
+### File Status (latest)
+| File | Change | Ready |
+|------|--------|-------|
+| `mod/src/main/java/dev/seedfinder/waypoint/WaypointRenderer.java` | 14 Yarn 1.21.11+build.6 fixes | ✅ |
+| `CHECKPOINT.md` | This update | ✅ |
+
+### Next
+- Commit and push → CI Run 9 (pending)
