@@ -1,0 +1,153 @@
+{
+  "version": 1,
+  "sdk_version": "0.20.1",
+  "path": "/mcp",
+  "auth": {
+    "type": "none"
+  },
+  "mcp": {
+    "server": {
+      "name": "seedfinder-mcp",
+      "version": "0.1.0",
+      "title": "SeedFinder MCP"
+    },
+    "tools": [
+      {
+        "name": "list_structures",
+        "title": "List supported structures",
+        "description": "Return every Minecraft 1.21.1 structure the finder can locate, with their placement algorithm.",
+        "annotations": {
+          "readOnlyHint": true,
+          "idempotentHint": true,
+          "openWorldHint": false
+        },
+        "inputSchema": {
+          "$schema": "http://json-schema.org/draft-07/schema#",
+          "type": "object",
+          "properties": {}
+        },
+        "outputSchema": null
+      },
+      {
+        "name": "find_nearest_structure",
+        "title": "Find nearest structure",
+        "description": "Locate the nearest instance of a Minecraft structure using a known world seed and the player's XZ coordinates. Returns block coordinates, distance, and compass bearing.",
+        "annotations": {
+          "readOnlyHint": true,
+          "idempotentHint": true,
+          "openWorldHint": false
+        },
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "seed": {
+              "type": "string",
+              "description": "Minecraft world seed as a signed 64-bit integer, e.g. '-1234567890'."
+            },
+            "structure": {
+              "type": "string",
+              "description": "Structure id (see list_structures), e.g. 'village', 'ancient_city'."
+            },
+            "playerX": {
+              "type": "integer",
+              "description": "Player X block coordinate."
+            },
+            "playerZ": {
+              "type": "integer",
+              "description": "Player Z block coordinate."
+            },
+            "radiusChunks": {
+              "type": "integer",
+              "exclusiveMinimum": 0,
+              "description": "Search radius in chunks (default 3200)."
+            }
+          },
+          "required": [
+            "seed",
+            "structure",
+            "playerX",
+            "playerZ"
+          ],
+          "additionalProperties": false,
+          "$schema": "http://json-schema.org/draft-07/schema#"
+        },
+        "outputSchema": null
+      },
+      {
+        "name": "list_waypoints",
+        "title": "List saved waypoints",
+        "description": "Return every waypoint currently saved on the server.",
+        "annotations": {
+          "readOnlyHint": true,
+          "idempotentHint": true,
+          "openWorldHint": false
+        },
+        "inputSchema": {
+          "$schema": "http://json-schema.org/draft-07/schema#",
+          "type": "object",
+          "properties": {}
+        },
+        "outputSchema": null
+      },
+      {
+        "name": "add_waypoint",
+        "title": "Add waypoint",
+        "description": "Save a labeled waypoint at the given block coordinates.",
+        "annotations": {
+          "readOnlyHint": false,
+          "destructiveHint": false,
+          "idempotentHint": false
+        },
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "label": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Human-readable label, e.g. 'Village near spawn'."
+            },
+            "x": {
+              "type": "integer"
+            },
+            "y": {
+              "type": "integer",
+              "default": 64
+            },
+            "z": {
+              "type": "integer"
+            },
+            "color": {
+              "type": "string",
+              "default": "#FFAA00",
+              "description": "Hex color for the waypoint marker."
+            }
+          },
+          "required": [
+            "label",
+            "x",
+            "z"
+          ],
+          "additionalProperties": false,
+          "$schema": "http://json-schema.org/draft-07/schema#"
+        },
+        "outputSchema": null
+      },
+      {
+        "name": "clear_waypoints",
+        "title": "Clear waypoints",
+        "description": "Delete every saved waypoint. Destructive: cannot be undone.",
+        "annotations": {
+          "readOnlyHint": false,
+          "destructiveHint": true,
+          "idempotentHint": true
+        },
+        "inputSchema": {
+          "$schema": "http://json-schema.org/draft-07/schema#",
+          "type": "object",
+          "properties": {}
+        },
+        "outputSchema": null
+      }
+    ]
+  }
+}
