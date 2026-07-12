@@ -20,7 +20,7 @@ Repo: `https://github.com/abuzhussain-dev/in-game-finder.git`
 
 1. ✅ Update build files to 1.21.11 deps
 2. ✅ Generate Gradle wrapper
-3. 🔄 [ci] Verify build compiles via GitHub CI — Run 4 pending
+3. 🔄 [ci] Verify build compiles via GitHub CI — Run 6 pending
 4. ✅ Fix stronghold rings (8 rings, 128 total)
 5. ✅ Add GUI search bar
 6. ✅ Add waypoint labels
@@ -74,7 +74,7 @@ Repo: `https://github.com/abuzhussain-dev/in-game-finder.git`
 - **Status:** Pushed to main, waiting for CI to complete
 - **Files changed:** `SeedFinderMod.java` (+1 line change), `WaypointRenderer.java` (32 insertions, 35 deletions)
 
-### Run 5 — WaypointRenderer fixes ❌ expected
+### Run 5 — WaypointRenderer fixes ❌ failure
 - **Commit:** `eda3b0a` ("Fix WaypointRenderer: missing Camera/RenderTickCounter imports, remove unused close()")
 - **Fixes applied:**
   - Added `import net.minecraft.client.render.Camera;` (used at line 168: `Camera cam = client.gameRenderer.getCamera();`)
@@ -82,7 +82,12 @@ Repo: `https://github.com/abuzhussain-dev/in-game-finder.git`
   - Removed `close()` instance method entirely (YAGNI — no caller, speculative cleanup)
   - Removed mixin/GameRendererMixin.java (not needed without close())
   - Removed mixins.json (not needed without mixins)
-- **Ponytail reasoning:** No mixin needed. The allocator/buffer cleanup on game close is speculative — JVM handles it. 3 files touched → 3 files deleted from scope.
+- **Error:** 15+ compilation errors — all imports for `com.mojang.blaze3d.vertex` classes wrong. In Yarn 1.21.11, `BufferBuilder`, `ByteBufferBuilder`, `MeshData`, `VertexFormat` moved from `com.mojang.blaze3d.vertex` to `net.minecraft.client.render`. `RenderType` moved from `net.minecraft.client.render.rendertype` to `net.minecraft.client.render` directly.
+- **Fix:** Corrected all imports to `net.minecraft.client.render.*`. Also changed `matrices.last().pose()` to `matrices.peek().getPositionMatrix()` (Yarn API).
+
+### Run 6 — Yarn 1.21.11 import fix 🔄 running
+- **Commit:** `4ec2351` ("Fix WaypointRenderer: correct Yarn 1.21.11 imports for moved classes")
+- **Status:** Pushed, CI in progress
 
 ## User Requests (Session Log)
 
@@ -108,13 +113,12 @@ Repo: `https://github.com/abuzhussain-dev/in-game-finder.git`
 | `fabric.mod.json` | MC dep ~1.21.11 | ✅ Committed |
 | `StructureFinder.java` | 8-ring stronghold algorithm | ✅ Committed |
 | `StructurePickerScreen.java` | Search bar filtering | ✅ Committed |
-| `WaypointRenderer.java` | 1.21.11 GPU pipeline + fix imports + remove close() | 🔄 Staged |
+| `WaypointRenderer.java` | 1.21.11 GPU pipeline + fix imports (3 iterations) | ✅ Committed |
 | `SeedFinderMod.java` | KeyBinding.Category fix | ✅ Committed |
 | `gradlew`, `gradlew.bat`, `gradle/` | Wrapper | ✅ Committed |
-| `AGENTS.md` | mcmodding-mcp rule + expanded checkpoint rule | 🔄 Staged |
-| `CHECKPOINT.md` | This update — session continuation | 🔄 Staged |
+| `AGENTS.md` | mcmodding-mcp rule + expanded checkpoint rule | ✅ Committed |
+| `CHECKPOINT.md` | This update — session continuation | ✅ Committed |
 
 ## Known Issues
-- CI Run 5 pending — push and trigger after commit
-- `gh` not authenticated in this env — check CI via web UI or `gh auth login`
+- CI Run 6 in progress — check result
 - Biome validation skipped for v1 (ship with caveat: ~5% false positives)
