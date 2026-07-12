@@ -36,7 +36,7 @@ export default defineTool({
           text: `Nearest ${structure}: X=${result.x} Z=${result.z} (${result.distance} blocks ${result.bearing})`,
         },
       ],
-      structuredContent: result,
+      structuredContent: { ...result },
     };
   },
 });
