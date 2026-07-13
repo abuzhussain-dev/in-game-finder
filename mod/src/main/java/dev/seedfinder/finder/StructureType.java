@@ -42,7 +42,7 @@ public enum StructureType {
     BASTION_REMNANT("Bastion Remnant", Placement.SCATTER, 27, 4, 30084232,
         SpreadType.LINEAR, 0.6, 0, 0, Dimension.NETHER, 1),
     END_CITY("End City", Placement.SCATTER, 20, 11, 10387313,
-        SpreadType.LINEAR, 1.0, 0, 0, Dimension.END),
+        SpreadType.LINEAR, 1.0, 0, 0, Dimension.END, 0),
     // DISABLED — PER_CHUNK structures hidden from GUI
     MINESHAFT("Mineshaft", Placement.PER_CHUNK, 1, 0, 0,
         SpreadType.LINEAR, 0.004, 0, 0, Dimension.OVERWORLD, 0),

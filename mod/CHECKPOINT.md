@@ -1,7 +1,7 @@
 # SeedFinder Mod — CHECKPOINT
 
 ## Active Task
-GUI Polish + UX improvements — complete. Ready to push to v2.
+Pre-push code verification — two compile bugs found and fixed.
 
 ## All Changes (Session 2026-07-13)
 
@@ -13,6 +13,8 @@ GUI Polish + UX improvements — complete. Ready to push to v2.
 | 2 | `StructurePickerScreen.java:270` | NPE if player disconnects mid-async-search | Added `if (client.player == null) return;` |
 | 3 | `SeedFinderMod.java:52-58` | Floating SF button rendered but non-clickable on mobile | Added `mouse.wasLeftButtonClicked()` hit-test |
 | 4 | `StructureType.java` (+ `StructureFinder.java`) | Nether Fortress & Bastion share same salt (nether_complexes) | Added `sharedSaltGroup` field + independent split LCG |
+| 5 | `StructurePickerScreen.java:148` | Missing `));` closing TextFieldWidget constructor | Changed `Text.literal("Search..."),` → `Text.literal("Search..."));` |
+| 6 | `StructureType.java:46` | END_CITY missing `sharedSaltGroup=0` — only 10 args, constructor needs 11 | Added `, 0` after `Dimension.END` |
 
 ### GUI Polish (new)
 

@@ -145,7 +145,7 @@ public class StructurePickerScreen extends Screen {
         int searchW = this.width - searchX - 4;
         searchField = new TextFieldWidget(textRenderer, searchX, tabY,
             searchW, touchDevice ? 28 : 18,
-            Text.literal("Search..."),
+            Text.literal("Search..."));
         searchField.setChangedListener(this::onSearchChanged);
         addDrawableChild(searchField);
 
