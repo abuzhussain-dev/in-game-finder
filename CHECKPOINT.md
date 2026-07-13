@@ -20,6 +20,7 @@
 | 2.2 | Phase 6: Lang | en_us.json | ✅ EXISTS (no change needed) | ~12 lines |
 | 3.1 | Phase 4: Render | WaypointRenderer.java | ✅ REWRITTEN | ~200 lines |
 | 4.1 | Phase 5: Android | SeedFinderMod.java (SF button) | ✅ ADDED | ~15 lines |
+| 5.1 | Phase 7: UX Fixes | 3 files — NPE guard, [X] wiring, allWithin panel, colors, config debounce | ✅ DONE (Run 20) | +47/−4 lines |
 
 ### Bugs Fixed (Phase 1):
 | Bug | Severity | What | Fix |
@@ -37,6 +38,11 @@
 | B11 | LOW | Nether+Bastion share salt 30084232 | Documented (correct per MC) |
 | B12 | LOW | No seed input in GUI | Seed field + Auto button |
 | B13 | LOW | 320-block beams noisy | → 32 blocks (Phase 4) |
+| B14 | CRITICAL | Main menu NPE on key press G | `client.world == null` guard |
+| B15 | HIGH | Dead [X] button in results panel | Wire `mouseClicked(Click, boolean)` → `removeResult()` |
+| B16 | LOW | Only nearest structure shown, no allWithin | Show up to 20 instances sorted by distance |
+| B17 | LOW | Color rotates per-search, non-deterministic | `type.ordinal() % COLORS.length` |
+| B18 | LOW | Config file written on every keystroke | `setSeedMem()` in keystrokes, `save()` on screen close |
 
 ### V2 Phase 1 Code:
 
@@ -313,7 +319,7 @@ Features:
 
 ---
 
-## 3. COMPLETE PLAN STATUS (14 Steps)
+## 3. COMPLETE PLAN STATUS (15 Steps)
 
 | # | Item | Status | Details | Files |
 |---|------|--------|---------|-------|
@@ -487,6 +493,17 @@ Features:
 - **Fix:** `DefaultVertexFormat.POSITION_COLOR` → `VertexFormats.POSITION_COLOR` (package: `net.minecraft.client.render`)
 - **All steps pass:** `:compileJava` ✅, `:processResources` ✅, `:classes` ✅, `:jar` ✅, `:remapJar` ✅
 
+### Run 20 — GREEN BUILD ✅ (quality-of-life fixes)
+- **Commit:** `3298a3d` ("fix: NPE guard, live [X] buttons, allWithin panel, deterministic colors, config debounce")
+- **URL:** https://github.com/abuzhussain-dev/in-game-finder/actions/runs/20
+- **Fixes:**
+  - B14: `client.world == null` guard in keybind handler (main menu NPE)
+  - B15: `mouseClicked(Click, boolean)` override wires [X] → `removeResult()`
+  - B16: `allWithin()` populates results panel with up to 20 instances sorted by distance
+  - B17: `type.ordinal() % COLORS.length` for deterministic per-structure colors
+  - B18: `setSeedMem()` debounces config write; save only on screen `close()`
+- **All steps pass:** `:compileJava` ✅, `:processResources` ✅, `:classes` ✅, `:jar` ✅, `:remapJar` ✅
+
 ---
 
 ## 5. ALL COMMITS (chronological)
@@ -522,8 +539,9 @@ Features:
 | 27 | `f1d9d19` | fix: register custom FILLED_THROUGH_WALLS pipeline instead of non-existent built-in | ❌ Run 17 |
 | 28 | `a72405a` | fix: resolve all 4 CI build errors for 1.21.11 API | ❌ Run 18 |
 | 29 | `aa2d0da` | fix: use VertexFormats.POSITION_COLOR from net.minecraft.client.render | ✅ Run 19 |
+| 30 | `3298a3d` | fix: NPE guard, live [X] buttons, allWithin panel, deterministic colors, config debounce | ✅ Run 20 |
 
-**Local state:** HEAD at `aa2d0da`, up to date with origin/v2.
+**Local state:** HEAD at `3298a3d`, up to date with origin/v2.
 **Uncommitted:** CHECKPOINT.md (this file) modified.
 
 ---
