@@ -30,23 +30,27 @@ import org.joml.Vector4f;
 import org.lwjgl.system.MemoryUtil;
 
 import dev.seedfinder.waypoint.WaypointStore.Waypoint;
+import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
 import java.util.OptionalDouble;
 import java.util.OptionalInt;
 
 public final class WaypointRenderer {
     private static WaypointRenderer instance;
-
-    // ponytail: use DEBUG_FILLED_BOX directly; DEBUG_FILLED_SNIPPET is private in Yarn 1.21.11+build.6
-    private static final RenderPipeline FILLED_THROUGH_WALLS = RenderPipelines.DEBUG_FILLED_BOX;
-
-    // ponytail: hardcode 256 (old RenderType.SMALL_BUFFER_SIZE), removed in Yarn 1.21.11
+    private static final RenderPipeline FILLED_THROUGH_WALLS = RenderPipelines.FILLED_THROUGH_WALLS;
     private static final BufferAllocator allocator = new BufferAllocator(256);
     private BufferBuilder buffer;
     private static final Vector4f COLOR_MODULATOR = new Vector4f(1f, 1f, 1f, 1f);
     private static final Vector3f MODEL_OFFSET = new Vector3f();
     private static final Matrix4f TEXTURE_MATRIX = new Matrix4f();
     private MappableRingBuffer vertexBuffer;
+
+    // Phase 4: performance constants
+    private static final int MAX_RENDER_DIST = 2048;
+    private static final int MAX_VISIBLE_BEAMS = 8;
+    private static final int BEAM_HEIGHT = 32;
+    private static final int MAX_WAYPOINTS = 50;
 
     private WaypointRenderer() {}
 
@@ -72,75 +76,88 @@ public final class WaypointRenderer {
 
         MatrixStack matrices = ctx.matrices();
         Vec3d camera = ctx.worldState().cameraRenderState.pos;
+        double camX = camera.x, camY = camera.y, camZ = camera.z;
+
+        long time = System.currentTimeMillis();
+        float pulse = 0.15f + 0.1f * (float) Math.sin(time * 0.003);
+        float topPulse = pulse + 0.35f;
 
         matrices.push();
-        matrices.translate(-camera.x, -camera.y, -camera.z);
+        matrices.translate(-camX, -camY, -camZ);
 
+        int beamsDrawn = 0;
         for (var wp : waypoints) {
+            if (beamsDrawn >= MAX_VISIBLE_BEAMS) break;
+
             BlockPos p = wp.pos();
+            double dx = p.getX() - camX, dz = p.getZ() - camZ;
+
+            // Distance culling
+            if (dx * dx + dz * dz > (double) MAX_RENDER_DIST * MAX_RENDER_DIST) continue;
+
+            // Behind-camera culling
+            float lookX = (float) camera.x, lookZ = (float) camera.z;
+            if (dx * lookX + dz * lookZ < -200) continue;
+
             float r = ((wp.color() >> 16) & 0xFF) / 255f;
             float g = ((wp.color() >> 8) & 0xFF) / 255f;
             float b = (wp.color() & 0xFF) / 255f;
 
-            float minX = p.getX() - 0.5f;
-            float maxX = p.getX() + 0.5f;
-            float minZ = p.getZ() - 0.5f;
-            float maxZ = p.getZ() + 0.5f;
-            float topY = 320f;
-            float bottomY = 0f;
+            float cx = p.getX(), cz = p.getZ();
+            float botY = (float) camY - 2f;
+            float topY = (float) camY + BEAM_HEIGHT;
 
-            renderFilledBox(matrices.peek().getPositionMatrix(), buffer, minX, bottomY, minZ, maxX, topY, maxZ, r, g, b);
+            renderFilledBox(matrices.peek().getPositionMatrix(), buffer,
+                cx - 0.5f, botY, cz - 0.5f, cx + 0.5f, topY, cz + 0.5f,
+                r, g, b, pulse, topPulse);
+            beamsDrawn++;
         }
 
         matrices.pop();
 
-        // --- draw phase ---
+        if (beamsDrawn == 0) { buffer = null; return; }
+
         BuiltBuffer builtBuffer = buffer.end();
         BuiltBuffer.DrawParameters drawParams = builtBuffer.getDrawParameters();
         VertexFormat format = drawParams.format();
 
         int vertexBufferSize = drawParams.vertexCount() * format.getVertexSize();
+        // Pre-allocated buffer: at least MAX_WAYPOINTS * estimated size
+        int allocSize = Math.max(vertexBufferSize, MAX_WAYPOINTS * 384);
         if (vertexBuffer == null || vertexBuffer.size() < vertexBufferSize) {
             if (vertexBuffer != null) vertexBuffer.close();
             vertexBuffer = new MappableRingBuffer(
-                () -> "seedfinder waypoint render",
+                () -> "seedfinder waypoint pool",
                 GpuBuffer.USAGE_VERTEX | GpuBuffer.USAGE_MAP_WRITE,
-                vertexBufferSize
+                allocSize
             );
         }
 
         CommandEncoder encoder = RenderSystem.getDevice().createCommandEncoder();
         try (var mappedView = encoder.mapBuffer(
-                vertexBuffer.getBlocking().slice(0, builtBuffer.getBuffer().remaining()), false, true)) {
+                vertexBuffer.getBlocking().slice(0, builtBuffer.getBuffer().remaining()),
+                false, true)) {
             MemoryUtil.memCopy(builtBuffer.getBuffer(), mappedView.data());
         }
 
         GpuBuffer vertices = vertexBuffer.getBlocking();
-        GpuBuffer indices;
-        VertexFormat.IndexType indexType;
+        RenderSystem.ShapeIndexBuffer sib = RenderSystem.getSequentialBuffer(
+            FILLED_THROUGH_WALLS.getVertexFormatMode());
+        GpuBuffer indices = sib.getIndexBuffer(drawParams.indexCount());
+        VertexFormat.IndexType indexType = sib.getIndexType();
 
-        // ponytail: skip sortQuads — Yarn 1.21.11+build.6 sortQuads takes VertexSorter not vertexSorting()
-        // Always use sequential buffer path. Accept minor alpha glitch on overlapping waypoints.
-        RenderSystem.ShapeIndexBuffer shapeIndexBuffer = RenderSystem.getSequentialBuffer(FILLED_THROUGH_WALLS.getVertexFormatMode());
-        indices = shapeIndexBuffer.getIndexBuffer(drawParams.indexCount());
-        indexType = shapeIndexBuffer.getIndexType();
-
-        GpuBufferSlice dynamicTransforms = RenderSystem.getDynamicUniforms()
+        GpuBufferSlice dt = RenderSystem.getDynamicUniforms()
             .write(RenderSystem.getModelViewMatrix(), COLOR_MODULATOR, MODEL_OFFSET, TEXTURE_MATRIX);
 
         var fb = client.getFramebuffer();
         try (RenderPass pass = RenderSystem.getDevice()
                 .createCommandEncoder()
-                .createRenderPass(
-                    () -> "seedfinder waypoint rendering",
-                    fb.getColorAttachmentView(),
-                    OptionalInt.empty(),
-                    fb.getDepthAttachmentView(),
-                    OptionalDouble.empty()
-                )) {
+                .createRenderPass(() -> "seedfinder waypoint rendering",
+                    fb.getColorAttachmentView(), OptionalInt.empty(),
+                    fb.getDepthAttachmentView(), OptionalDouble.empty())) {
             pass.setPipeline(FILLED_THROUGH_WALLS);
             RenderSystem.bindDefaultUniforms(pass);
-            pass.setUniform("DynamicTransforms", dynamicTransforms);
+            pass.setUniform("DynamicTransforms", dt);
             pass.setVertexBuffer(0, vertices);
             pass.setIndexBuffer(indices, indexType);
             pass.drawIndexed(0, 0, drawParams.indexCount(), 1);
@@ -150,66 +167,66 @@ public final class WaypointRenderer {
         vertexBuffer.rotate();
         buffer = null;
 
-        // --- labels ---
         drawLabels(ctx, waypoints, matrices, camera);
     }
 
-    private static void drawLabels(WorldRenderContext ctx, List<Waypoint> waypoints, MatrixStack matrices, Vec3d camPos) {
+    private static void renderFilledBox(Matrix4fc pm, BufferBuilder b,
+            float x1, float y1, float z1, float x2, float y2, float z2,
+            float r, float g, float bl, float sa, float ta) {
+        b.vertex(pm, x1, y1, z2).color(r, g, bl, sa);
+        b.vertex(pm, x2, y1, z2).color(r, g, bl, sa);
+        b.vertex(pm, x2, y2, z2).color(r, g, bl, sa);
+        b.vertex(pm, x1, y2, z2).color(r, g, bl, sa);
+        b.vertex(pm, x2, y1, z1).color(r, g, bl, sa);
+        b.vertex(pm, x1, y1, z1).color(r, g, bl, sa);
+        b.vertex(pm, x1, y2, z1).color(r, g, bl, sa);
+        b.vertex(pm, x2, y2, z1).color(r, g, bl, sa);
+        b.vertex(pm, x1, y1, z1).color(r, g, bl, sa);
+        b.vertex(pm, x1, y1, z2).color(r, g, bl, sa);
+        b.vertex(pm, x1, y2, z2).color(r, g, bl, sa);
+        b.vertex(pm, x1, y2, z1).color(r, g, bl, sa);
+        b.vertex(pm, x2, y1, z2).color(r, g, bl, sa);
+        b.vertex(pm, x2, y1, z1).color(r, g, bl, sa);
+        b.vertex(pm, x2, y2, z1).color(r, g, bl, sa);
+        b.vertex(pm, x2, y2, z2).color(r, g, bl, sa);
+        b.vertex(pm, x1, y2, z2).color(r, g, bl, ta);
+        b.vertex(pm, x2, y2, z2).color(r, g, bl, ta);
+        b.vertex(pm, x2, y2, z1).color(r, g, bl, ta);
+        b.vertex(pm, x1, y2, z1).color(r, g, bl, ta);
+        b.vertex(pm, x1, y1, z1).color(r, g, bl, sa);
+        b.vertex(pm, x2, y1, z1).color(r, g, bl, sa);
+        b.vertex(pm, x2, y1, z2).color(r, g, bl, sa);
+        b.vertex(pm, x1, y1, z2).color(r, g, bl, sa);
+    }
+
+    private static void drawLabels(WorldRenderContext ctx, List<Waypoint> waypoints,
+                                    MatrixStack matrices, Vec3d camPos) {
         var client = MinecraftClient.getInstance();
         if (client.player == null) return;
         Camera cam = client.gameRenderer.getCamera();
-        TextRenderer textRenderer = client.textRenderer;
+        TextRenderer tr = client.textRenderer;
 
         for (var wp : waypoints) {
             BlockPos p = wp.pos();
-            float topY = 320f;
+            double dx = p.getX() - camPos.x, dz = p.getZ() - camPos.z;
+            if (dx * dx + dz * dz > (double) MAX_RENDER_DIST * MAX_RENDER_DIST) continue;
 
+            float ly = (float) camPos.y + BEAM_HEIGHT + 2.0f;
             matrices.push();
-            matrices.translate(p.getX() - camPos.x, topY + 2.0 - camPos.y, p.getZ() - camPos.z);
+            matrices.translate(p.getX() - camPos.x, ly - camPos.y, p.getZ() - camPos.z);
             matrices.multiply(cam.getRotation());
 
             double dist = Math.sqrt(client.player.getBlockPos().getSquaredDistance(p));
             String label = wp.label() + " " + (int) dist + "m";
 
             matrices.scale(0.025f, 0.025f, 0.025f);
-            int textW = textRenderer.getWidth(label);
-            float textX = -textW / 2f;
-
-            textRenderer.draw(label, textX, 0, 0xFFFFFF, true, matrices.peek().getPositionMatrix(),
+            int tw = tr.getWidth(label);
+            tr.draw(label, -tw / 2f, 0, 0xFFFFFF, true,
+                matrices.peek().getPositionMatrix(),
                 client.getBufferBuilders().getEntityVertexConsumers(),
                 TextRenderer.TextLayerType.SEE_THROUGH, 0x000000, 0xF000F0);
-
             matrices.pop();
         }
-    }
-
-    private static void renderFilledBox(Matrix4fc posMat, BufferBuilder b, float minX, float minY, float minZ,
-                                         float maxX, float maxY, float maxZ, float r, float g, float bl) {
-        // ponytail: color() not setColor() in Yarn 1.21.11 VertexConsumer API
-        b.vertex(posMat, minX, minY, maxZ).color(r, g, bl, 0.2f);
-        b.vertex(posMat, maxX, minY, maxZ).color(r, g, bl, 0.2f);
-        b.vertex(posMat, maxX, maxY, maxZ).color(r, g, bl, 0.2f);
-        b.vertex(posMat, minX, maxY, maxZ).color(r, g, bl, 0.2f);
-        b.vertex(posMat, maxX, minY, minZ).color(r, g, bl, 0.2f);
-        b.vertex(posMat, minX, minY, minZ).color(r, g, bl, 0.2f);
-        b.vertex(posMat, minX, maxY, minZ).color(r, g, bl, 0.2f);
-        b.vertex(posMat, maxX, maxY, minZ).color(r, g, bl, 0.2f);
-        b.vertex(posMat, minX, minY, minZ).color(r, g, bl, 0.2f);
-        b.vertex(posMat, minX, minY, maxZ).color(r, g, bl, 0.2f);
-        b.vertex(posMat, minX, maxY, maxZ).color(r, g, bl, 0.2f);
-        b.vertex(posMat, minX, maxY, minZ).color(r, g, bl, 0.2f);
-        b.vertex(posMat, maxX, minY, maxZ).color(r, g, bl, 0.2f);
-        b.vertex(posMat, maxX, minY, minZ).color(r, g, bl, 0.2f);
-        b.vertex(posMat, maxX, maxY, minZ).color(r, g, bl, 0.2f);
-        b.vertex(posMat, maxX, maxY, maxZ).color(r, g, bl, 0.2f);
-        b.vertex(posMat, minX, maxY, maxZ).color(r, g, bl, 0.6f);
-        b.vertex(posMat, maxX, maxY, maxZ).color(r, g, bl, 0.6f);
-        b.vertex(posMat, maxX, maxY, minZ).color(r, g, bl, 0.6f);
-        b.vertex(posMat, minX, maxY, minZ).color(r, g, bl, 0.6f);
-        b.vertex(posMat, minX, minY, minZ).color(r, g, bl, 0.2f);
-        b.vertex(posMat, maxX, minY, minZ).color(r, g, bl, 0.2f);
-        b.vertex(posMat, maxX, minY, maxZ).color(r, g, bl, 0.2f);
-        b.vertex(posMat, minX, minY, maxZ).color(r, g, bl, 0.2f);
     }
 
     private static void renderHud(DrawContext ctx, RenderTickCounter tickCounter) {
@@ -219,25 +236,27 @@ public final class WaypointRenderer {
         var waypoints = WaypointStore.snapshot();
         if (waypoints.isEmpty()) return;
 
-        var playerPos = client.player.getBlockPos();
-        var best = waypoints.get(0);
-        double bestDist = playerPos.getSquaredDistance(best.pos());
-        for (var wp : waypoints) {
-            double d = playerPos.getSquaredDistance(wp.pos());
-            if (d < bestDist) {
-                bestDist = d;
-                best = wp;
-            }
+        var pp = client.player.getBlockPos();
+        List<Waypoint> sorted = waypoints.stream()
+            .sorted(Comparator.comparingDouble(w -> pp.getSquaredDistance(w.pos())))
+            .limit(8).toList();
+        var tr = client.textRenderer;
+        int maxW = 0;
+        List<String> lines = new ArrayList<>();
+        for (var wp : sorted) {
+            double dist = Math.sqrt(pp.getSquaredDistance(wp.pos()));
+            String dir = cardinalDirection(pp, wp.pos());
+            String line = wp.label() + "  " + (int) dist + "m " + dir;
+            lines.add(line);
+            maxW = Math.max(maxW, tr.getWidth(line));
         }
-
-        double dist = Math.sqrt(bestDist);
-        String dir = cardinalDirection(playerPos, best.pos());
-        String text = "\u2192 " + best.label() + " " + (int) dist + "m [" + dir + "]";
-
-        int color = best.color();
-        int w = client.textRenderer.getWidth(text);
-        ctx.fill(8, 8, 10 + w + 2, 20, 0x88000000);
-        ctx.drawText(client.textRenderer, text, 10, 10, color, true);
+        int bgH = 6 + lines.size() * 14;
+        ctx.fill(4, 4, maxW + 20, bgH, 0x88000000);
+        for (int i = 0; i < lines.size(); i++) {
+            int y = 8 + i * 14;
+            ctx.fill(8, y + 3, 16, y + 9, sorted.get(i).color());
+            ctx.drawText(tr, lines.get(i), 20, y, 0xFFFFFF, true);
+        }
     }
 
     private static String cardinalDirection(BlockPos from, BlockPos to) {
