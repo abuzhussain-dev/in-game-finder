@@ -94,8 +94,7 @@ public class StructurePickerScreen extends Screen {
 
     private static boolean detectTouch() {
         try {
-            return GLFW.glfwGetPrimaryMonitor() != null
-                && MinecraftClient.getInstance().getWindow().getWidth() < 800;
+            return MinecraftClient.getInstance().getWindow().getWidth() < 800;
         } catch (Exception e) { return false; }
     }
 
@@ -167,8 +166,9 @@ public class StructurePickerScreen extends Screen {
 
     private void autoDetectSeed() {
         var client = MinecraftClient.getInstance();
-        if (client.world != null) {
-            long worldSeed = client.world.getSeed();
+        var server = client.getServer();
+        if (server != null) {
+            long worldSeed = server.getSaveProperties().getGeneratorOptions().getSeed();
             if (worldSeed != 0 && worldSeed != -1) {
                 SeedFinderConfig.setSeed(worldSeed);
                 seedField.setText(Long.toString(worldSeed));

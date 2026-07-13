@@ -2,7 +2,7 @@ package dev.seedfinder.waypoint;
 
 import com.mojang.blaze3d.buffers.GpuBuffer;
 import com.mojang.blaze3d.buffers.GpuBufferSlice;
-import com.mojang.blaze3d.pipeline.DepthTestFunction;
+import com.mojang.blaze3d.platform.DepthTestFunction;
 import com.mojang.blaze3d.pipeline.RenderPipeline;
 import com.mojang.blaze3d.systems.CommandEncoder;
 import com.mojang.blaze3d.systems.RenderPass;
@@ -24,7 +24,6 @@ import net.minecraft.util.math.Vec3d;
 import net.fabricmc.fabric.api.client.rendering.v1.HudRenderCallback;
 import net.fabricmc.fabric.api.client.rendering.v1.world.WorldRenderContext;
 import net.fabricmc.fabric.api.client.rendering.v1.world.WorldRenderEvents;
-import net.minecraft.util.Identifier;
 import org.joml.Matrix4f;
 import org.joml.Matrix4fc;
 import org.joml.Vector3f;
@@ -40,10 +39,19 @@ import java.util.OptionalInt;
 
 public final class WaypointRenderer {
     private static WaypointRenderer instance;
+    private static final RenderPipeline.Snippet FILLED_SNIPPET = new RenderPipeline.Snippet(
+        java.util.Optional.empty(), java.util.Optional.empty(), java.util.Optional.empty(),
+        java.util.Optional.empty(), java.util.Optional.empty(), java.util.Optional.empty(),
+        java.util.Optional.of(DepthTestFunction.NO_DEPTH_TEST),
+        java.util.Optional.empty(), java.util.Optional.empty(),
+        java.util.Optional.empty(), java.util.Optional.empty(), java.util.Optional.empty(),
+        java.util.Optional.empty(),
+        java.util.Optional.of(com.mojang.blaze3d.vertex.DefaultVertexFormat.POSITION_COLOR),
+        java.util.Optional.of(VertexFormat.DrawMode.QUADS)
+    );
     private static final RenderPipeline FILLED_THROUGH_WALLS = RenderPipelines.register(
-        RenderPipeline.builder(RenderPipelines.DEBUG_FILLED_SNIPPET)
-            .withLocation(Identifier.of("seedfinder", "pipeline/debug_filled_box_through_walls"))
-            .withDepthTestFunction(DepthTestFunction.NO_DEPTH_TEST)
+        RenderPipeline.builder(new RenderPipeline.Snippet[]{FILLED_SNIPPET})
+            .withLocation(net.minecraft.util.Identifier.of("seedfinder", "pipeline/debug_filled_box_through_walls"))
             .build()
     );
     private static final BufferAllocator allocator = new BufferAllocator(256);

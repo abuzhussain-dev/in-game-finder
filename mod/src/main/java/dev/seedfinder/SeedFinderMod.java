@@ -52,8 +52,7 @@ public class SeedFinderMod implements ClientModInitializer {
 
     private static boolean isTouchDevice() {
         try {
-            return GLFW.glfwGetPrimaryMonitor() != null
-                && MinecraftClient.getInstance().getWindow().getWidth() < 800;
+            return MinecraftClient.getInstance().getWindow().getWidth() < 800;
         } catch (Exception e) { return false; }
     }
 }
