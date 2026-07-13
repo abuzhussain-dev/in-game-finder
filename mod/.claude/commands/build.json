@@ -1,0 +1,1 @@
+{"name":"build","description":"Trigger CI build for v2","prompt":"Push v2 and check GitHub Actions status. No local gradle."}

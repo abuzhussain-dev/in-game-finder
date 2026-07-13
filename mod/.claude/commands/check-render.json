@@ -1,0 +1,1 @@
+{"name":"check-render","description":"Review render pipeline safety","prompt":"Review WaypointRenderer.java for: world null guards, RenderPipeline registration, NO_DEPTH_TEST, MappableRingBuffer safety."}

@@ -24,7 +24,7 @@ public final class SeedFinderCommand {
                     .then(ClientCommandManager.argument("value", LongArgumentType.longArg()).executes(ctx -> {
                         long v = LongArgumentType.getLong(ctx, "value");
                         SeedFinderConfig.setSeed(v);
-                        ctx.getSource().sendFeedback(Text.translatable("seedfinder.msg.seed_set"));
+                        ctx.getSource().sendFeedback(Text.literal("Seed set to " + v));
                         return 1;
                     })))
                 .then(ClientCommandManager.literal("clear").executes(ctx -> {

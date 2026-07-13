@@ -3,26 +3,23 @@ package dev.seedfinder.gui;
 import dev.seedfinder.config.SeedFinderConfig;
 import dev.seedfinder.finder.StructureFinder;
 import dev.seedfinder.finder.StructureType;
+import dev.seedfinder.util.TouchUtil;
 import dev.seedfinder.waypoint.WaypointStore;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.gui.Click;
 import net.minecraft.client.gui.DrawContext;
 import net.minecraft.client.gui.screen.Screen;
+import net.minecraft.client.gui.tooltip.Tooltip;
 import net.minecraft.client.gui.widget.ButtonWidget;
 import net.minecraft.client.gui.widget.TextFieldWidget;
 import net.minecraft.text.Text;
 import net.minecraft.util.Formatting;
 import net.minecraft.util.math.BlockPos;
-import org.lwjgl.glfw.GLFW;
 
 import java.util.*;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 
-/**
- * Structure picker screen with seed input, dimension tabs, search, and async search.
- * Touch-adapted for Zalith Launcher 2 (single-column, larger buttons).
- */
 public class StructurePickerScreen extends Screen {
 
     private static final int[] COLORS = {
@@ -75,27 +72,25 @@ public class StructurePickerScreen extends Screen {
     private TextFieldWidget seedField;
     private TextFieldWidget searchField;
     private List<StructureType> filteredTypes = new ArrayList<>();
-    private final List<ButtonWidget> structureButtons = new ArrayList<>();
+    private final List<StructureButton> structureButtons = new ArrayList<>();
     private final List<ButtonWidget> tabButtons = new ArrayList<>();
+
+    // Scrolling
+    private int scrollOffset = 0;
+    private int maxScroll = 0;
 
     public record SearchResult(StructureType type, BlockPos pos,
                                int color, int distance, String direction) {}
     private final List<SearchResult> results = new ArrayList<>();
+    private int resultsScroll = 0;
     private boolean showSeedWarning = false;
     private Set<StructureType> searchingTypes = ConcurrentHashMap.newKeySet();
     private long lastSearchTime = 0;
     private static final long SEARCH_DEBOUNCE_MS = 150;
 
     public StructurePickerScreen() {
-        super(Text.translatable("seedfinder.screen.title"));
-        this.touchDevice = detectTouch();
-        filteredTypes = new ArrayList<>();
-    }
-
-    private static boolean detectTouch() {
-        try {
-            return MinecraftClient.getInstance().getWindow().getWidth() < 800;
-        } catch (Exception e) { return false; }
+        super(Text.literal("Seed Finder"));
+        this.touchDevice = TouchUtil.isTouchDevice();
     }
 
     @Override
@@ -111,10 +106,16 @@ public class StructurePickerScreen extends Screen {
         seedField.setChangedListener(this::onSeedChanged);
         addDrawableChild(seedField);
 
-        // Auto-detect button
+        // Auto-detect + Config buttons
         addDrawableChild(ButtonWidget.builder(
             Text.literal("Auto"), btn -> autoDetectSeed())
             .dimensions(this.width - 52, 2, 48, touchDevice ? 28 : 18)
+            .build());
+        addDrawableChild(ButtonWidget.builder(
+            Text.literal("\u2699"), btn ->
+                MinecraftClient.getInstance().setScreen(new SeedFinderConfigScreen(this)))
+            .dimensions(this.width - 104, 2, 48, touchDevice ? 28 : 18)
+            .tooltip(Tooltip.of(Text.literal("Settings")))
             .build());
 
         showSeedWarning = !SeedFinderConfig.hasSeed();
@@ -130,6 +131,7 @@ public class StructurePickerScreen extends Screen {
             var btn = ButtonWidget.builder(
                 Text.literal(tab.name()), b -> {
                     activeTab = t;
+                    scrollOffset = 0;
                     rebuildFilter(searchField.getText());
                     rebuildButtons();
                 }).dimensions(tabX, tabY, tabW, tabH).build();
@@ -143,7 +145,7 @@ public class StructurePickerScreen extends Screen {
         int searchW = this.width - searchX - 4;
         searchField = new TextFieldWidget(textRenderer, searchX, tabY,
             searchW, touchDevice ? 28 : 18,
-            Text.translatable("seedfinder.screen.search"));
+            Text.literal("Search..."),
         searchField.setChangedListener(this::onSearchChanged);
         addDrawableChild(searchField);
 
@@ -155,11 +157,12 @@ public class StructurePickerScreen extends Screen {
         int bottomY = this.height - (touchDevice ? 48 : 30);
         int btnH = touchDevice ? 36 : 20;
         addDrawableChild(ButtonWidget.builder(
-            Text.translatable("seedfinder.screen.clear_waypoints"), btn -> {
+            Text.literal("Clear Waypoints"), btn -> {
                 WaypointStore.clear(); results.clear();
-            }).dimensions(4, bottomY, 160, btnH).build());
+            }).dimensions(4, bottomY, 160, btnH).tooltip(
+                Tooltip.of(Text.literal("Remove all waypoints"))).build());
         addDrawableChild(ButtonWidget.builder(
-            Text.translatable("seedfinder.screen.close"),
+            Text.literal("Close"),
             btn -> close())
             .dimensions(this.width - 164, bottomY, 160, btnH).build());
     }
@@ -218,6 +221,7 @@ public class StructurePickerScreen extends Screen {
     private void onSearchChanged(String query) {
         long now = System.nanoTime() / 1_000_000;
         rebuildFilter(query);
+        scrollOffset = 0;
         if (now - lastSearchTime > SEARCH_DEBOUNCE_MS) {
             lastSearchTime = now;
             rebuildButtons();
@@ -225,31 +229,62 @@ public class StructurePickerScreen extends Screen {
     }
 
     private void rebuildButtons() {
+        int btnH = touchDevice ? 36 : 20;
+        int gap = touchDevice ? 5 : 3;
+        int listTop = touchDevice ? 76 : 50;
+        int perRow = touchDevice ? 1 : 2;
+        int btnW = (this.width / perRow) - (perRow + 1) * gap;
+        int totalRows = (filteredTypes.size() + perRow - 1) / perRow;
+        int totalContentH = totalRows * (btnH + gap);
+
+        // Available height for the button area: from listTop to clear-waypoints button
+        int bottomY = this.height - (touchDevice ? 48 : 30);
+        int availableH = bottomY - listTop - gap;
+        maxScroll = Math.max(0, totalContentH - availableH);
+        if (scrollOffset > maxScroll) scrollOffset = maxScroll;
+
+        // Remove old buttons
         while (structureButtons.size() > filteredTypes.size()) {
             remove(structureButtons.remove(structureButtons.size() - 1));
         }
-        int btnH = touchDevice ? 36 : 20;
-        int gap = touchDevice ? 5 : 3;
-        int startY = touchDevice ? 76 : 50;
-        int perRow = touchDevice ? 1 : 2;
-        int btnW = (this.width / perRow) - (perRow + 1) * gap;
+
+        // Waypoints snapshot for indicator
+        var waypoints = WaypointStore.snapshot();
+
         for (int i = 0; i < filteredTypes.size(); i++) {
             StructureType t = filteredTypes.get(i);
             int col = i % perRow, row = i / perRow;
-            int x = gap + col * (btnW + gap), y = startY + row * (btnH + gap);
-            String label = t.displayName + (searchingTypes.contains(t) ? " ..." : "");
+            int x = gap + col * (btnW + gap);
+            int y = listTop + row * (btnH + gap) - scrollOffset;
+
+            // Skip off-screen buttons (but still create for others)
+            boolean waypointed = waypoints.stream().anyMatch(w -> w.label().equals(t.displayName));
+            String label = (waypointed ? "\u2713 " : "") + t.displayName
+                + (searchingTypes.contains(t) ? " ..." : "");
             var btn = ButtonWidget.builder(
                 Text.literal(label), b -> pick(t))
-                .dimensions(x, y, btnW, btnH).build();
+                .dimensions(x, y, btnW, btnH)
+                .tooltip(Tooltip.of(Text.literal(
+                    String.format("%s | Spacing: %d, Separation: %d | %s",
+                        t.displayName, t.spacing, t.separation, t.dimension))))
+                .build();
+            // Auto-focus if this is the only result
+            if (filteredTypes.size() == 1) btn.setFocused(true);
+
             if (i < structureButtons.size()) {
                 remove(structureButtons.get(i));
+                var old = structureButtons.get(i);
+                old.setPosition(x, y);
                 structureButtons.set(i, btn);
             } else {
-                structureButtons.add(btn);
+                structureButtons.add(new StructureButton(btn, t));
             }
             addDrawableChild(btn);
         }
     }
+
+    /** Wrapper pairing button with its type so we can show waypoint status. */
+    private record StructureButton(ButtonWidget button, StructureType type) {}
 
     private void pick(StructureType type) {
         if (searchingTypes.contains(type)) return;
@@ -257,6 +292,7 @@ public class StructurePickerScreen extends Screen {
         if (seedObj == null) { showSeedWarning = true; return; }
         long seed = seedObj;
         var client = MinecraftClient.getInstance();
+        if (client.player == null) return;
         int px = client.player.getBlockX();
         int pz = client.player.getBlockZ();
         int radius = SeedFinderConfig.getSearchRadiusChunks();
@@ -267,11 +303,12 @@ public class StructurePickerScreen extends Screen {
         CompletableFuture.supplyAsync(() ->
             StructureFinder.nearest(seed, type, px, pz, radius)
         ).thenAcceptAsync(found -> {
+            if (client.player == null) return;
             searchingTypes.remove(type);
             rebuildButtons();
             if (found == null) {
                 client.player.sendMessage(
-                    Text.translatable("seedfinder.msg.not_found", type.displayName)
+                    Text.literal("%s not found".formatted(type.displayName))
                         .formatted(Formatting.RED), false);
                 return;
             }
@@ -281,7 +318,7 @@ public class StructurePickerScreen extends Screen {
             WaypointStore.add(new WaypointStore.Waypoint(type.displayName, found, color));
             results.clear();
             results.add(new SearchResult(type, found, color, dist, dir));
-            // Also show other instances of this type (sorted by distance)
+            // Also show other instances (sorted by distance)
             var all = new java.util.ArrayList<>(StructureFinder.allWithin(seed, type, px, pz, radius));
             all.sort(java.util.Comparator.comparingDouble(
                 p -> p.getSquaredDistance(client.player.getBlockPos())));
@@ -293,8 +330,8 @@ public class StructurePickerScreen extends Screen {
             }
             rebuildButtons();
             client.player.sendMessage(
-                Text.translatable("seedfinder.msg.found",
-                    type.displayName, found.getX(), found.getZ(), dist, dir), false);
+                Text.literal("Found %s at X:%d Z:%d %dm %s".formatted(
+                    type.displayName, found.getX(), found.getZ(), dist, dir)), false);
         }, client);
     }
 
@@ -311,11 +348,28 @@ public class StructurePickerScreen extends Screen {
     }
 
     @Override
-    public void tick() {
-        if (System.nanoTime() / 1_000_000 - lastSearchTime > SEARCH_DEBOUNCE_MS) {
+    public boolean mouseScrolled(double mouseX, double mouseY, double horizontal, double vertical) {
+        // Scroll structure list if mouse is in the left area
+        int listTop = touchDevice ? 76 : 50;
+        int bottomY = this.height - (touchDevice ? 48 : 30);
+        if (mouseY >= listTop && mouseY <= bottomY && mouseX < this.width * 0.5) {
+            scrollOffset = Math.clamp(scrollOffset - (int)(vertical * 20), 0, maxScroll);
             rebuildButtons();
-            lastSearchTime = Long.MAX_VALUE;
+            return true;
         }
+        // Scroll results panel if mouse is in results area
+        if (results.size() > 0) {
+            int px = touchDevice ? 4 : (int)(this.width * 0.55);
+            int py = touchDevice ? this.height - 170 : 50;
+            int ph = results.size() * 20 + 30;
+            if (mouseX >= px && mouseX <= px + (touchDevice ? this.width - 8 : this.width - px - 4)
+                && mouseY >= py) {
+                resultsScroll = Math.clamp(resultsScroll - (int)(vertical * 20), 0,
+                    Math.max(0, results.size() * 20 - (ph - 30)));
+                return true;
+            }
+        }
+        return super.mouseScrolled(mouseX, mouseY, horizontal, vertical);
     }
 
     @Override
@@ -336,21 +390,26 @@ public class StructurePickerScreen extends Screen {
         if (!results.isEmpty()) {
             int px = touchDevice ? 4 : (int)(this.width * 0.55);
             int pw = touchDevice ? this.width - 8 : this.width - px - 4;
-            int py = touchDevice ? this.height - 110 : 50;
-            int ph = touchDevice ? 60 : this.height - 80;
+            int py = touchDevice ? this.height - 170 : 50;
+            int ph = Math.min(results.size() * 20 + 30, this.height - py - (touchDevice ? 48 : 30));
             ctx.fill(px, py, px + pw, py + ph, 0xCC000000);
             ctx.drawText(tr, "Results (" + results.size() + ")", px + 6, py + 4, 0xFFFFFF, true);
             int ey = py + 20;
-            int max = touchDevice ? 2 : (ph - 30) / 38;
-            for (int i = 0; i < Math.min(results.size(), max); i++) {
+            int visibleStart = Math.max(0, resultsScroll / 20);
+            int visibleEnd = Math.min(results.size(), visibleStart + (ph - 30) / 20);
+            for (int i = visibleStart; i < visibleEnd; i++) {
                 SearchResult r = results.get(i);
-                ctx.fill(px + 8, ey + 2, px + 16, ey + 10, r.color());
-                ctx.drawText(tr, r.type().displayName, px + 22, ey, 0xFFFFFF, true);
+                int ry = ey + (i - visibleStart) * 20;
+                ctx.fill(px + 8, ry + 2, px + 16, ry + 10, r.color());
+                ctx.drawText(tr, r.type().displayName, px + 22, ry, 0xFFFFFF, true);
                 ctx.drawText(tr,
                     "X:" + r.pos().getX() + " Z:" + r.pos().getZ() + "  "
-                    + r.distance() + "m " + r.direction(), px + 22, ey + 12, 0xAAAAAA, false);
-                ctx.drawText(tr, "[X]", px + pw - 24, ey, 0xFF5555, true);
-                ey += 38;
+                    + r.distance() + "m " + r.direction(), px + 22, ry + 10, 0xAAAAAA, false);
+                ctx.drawText(tr, "[X]", px + pw - 24, ry, 0xFF5555, true);
+            }
+            // Scroll indicator
+            if (results.size() > visibleEnd - visibleStart) {
+                ctx.drawText(tr, "\u25BC scroll \u25B2", px + pw / 2 - 30, py + ph - 12, 0x888888, true);
             }
         }
     }
@@ -360,13 +419,14 @@ public class StructurePickerScreen extends Screen {
         if (click.buttonInfo().button() == 0 && !results.isEmpty()) {
             int px = touchDevice ? 4 : (int)(this.width * 0.55);
             int pw = touchDevice ? this.width - 8 : this.width - px - 4;
-            int py = touchDevice ? this.height - 110 : 50;
-            int ph = touchDevice ? 60 : this.height - 80;
-            int max = Math.min(results.size(), touchDevice ? 2 : (ph - 30) / 38);
+            int py = touchDevice ? this.height - 170 : 50;
+            int ph = Math.min(results.size() * 20 + 30, this.height - py - (touchDevice ? 48 : 30));
+            int visibleStart = Math.max(0, resultsScroll / 20);
+            int visibleEnd = Math.min(results.size(), visibleStart + (ph - 30) / 20);
             double mx = click.x();
             double my = click.y();
-            for (int i = 0; i < max; i++) {
-                int ey = py + 20 + i * 38;
+            for (int i = visibleStart; i < visibleEnd; i++) {
+                int ey = py + 20 + (i - visibleStart) * 20;
                 int xBtn = px + pw - 24;
                 if (mx >= xBtn && mx <= xBtn + 12 && my >= ey && my <= ey + 12) {
                     removeResult(i);

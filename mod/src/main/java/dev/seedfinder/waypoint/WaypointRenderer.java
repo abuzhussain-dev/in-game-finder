@@ -260,23 +260,51 @@ public final class WaypointRenderer {
             .limit(8).toList();
         var tr = client.textRenderer;
 
-        // Player yaw: 0 = south, 90 = west, 180 = north, 270 = east
         float yaw = client.player.getYaw();
         int maxW = 0;
-        List<String> lines = new ArrayList<>();
+        List<String> labelLines = new ArrayList<>();
+        List<String> coordLines = new ArrayList<>();
         for (var wp : sorted) {
             double dist = Math.sqrt(pp.getSquaredDistance(wp.pos()));
             String dir = directionArrow(pp, wp.pos(), yaw);
-            String line = wp.label() + "  " + (int) dist + "m " + dir;
-            lines.add(line);
-            maxW = Math.max(maxW, tr.getWidth(line));
+            labelLines.add(wp.label() + "  " + (int) dist + "m " + dir);
+            coordLines.add("X:" + wp.pos().getX() + " Z:" + wp.pos().getZ());
+            maxW = Math.max(maxW, tr.getWidth(labelLines.get(labelLines.size() - 1))
+                + tr.getWidth(coordLines.get(coordLines.size() - 1)) + 10);
         }
-        int bgH = 6 + lines.size() * 14;
-        ctx.fill(4, 4, maxW + 20, bgH, 0x88000000);
-        for (int i = 0; i < lines.size(); i++) {
-            int y = 8 + i * 14;
+        int bgH = 10 + labelLines.size() * 16;
+        ctx.fill(4, 4, maxW + 28, bgH, 0x88000000);
+        // Header: waypoint count
+        ctx.drawText(tr, "Waypoints (" + waypoints.size() + ")", 8, 6, 0xCCCCCC, true);
+        for (int i = 0; i < labelLines.size(); i++) {
+            int y = 12 + i * 16;
             ctx.fill(8, y + 3, 16, y + 9, sorted.get(i).color());
-            ctx.drawText(tr, lines.get(i), 20, y, 0xFFFFFF, true);
+            ctx.drawText(tr, labelLines.get(i), 20, y, 0xFFFFFF, true);
+            ctx.drawText(tr, coordLines.get(i), 20, y + 8, 0x888888, false);
+        }
+
+        // Click-to-remove on HUD entry (same wasLeftButtonClicked pattern as floating button)
+        if (client.mouse.wasLeftButtonClicked()) {
+            double mx = client.mouse.getX() * client.getWindow().getScaledWidth()
+                / client.getWindow().getWidth();
+            double my = client.mouse.getY() * client.getWindow().getScaledHeight()
+                / client.getWindow().getHeight();
+            for (int i = 0; i < labelLines.size(); i++) {
+                int y = 12 + i * 16;
+                int xRight = 4 + maxW + 28;
+                // Click on the right side of the HUD entry = delete
+                if (mx >= xRight - 12 && mx <= xRight && my >= y && my <= y + 14) {
+                    var wp = sorted.get(i);
+                    var snap = WaypointStore.snapshot();
+                    for (int j = snap.size() - 1; j >= 0; j--) {
+                        if (snap.get(j).pos().equals(wp.pos())
+                            && snap.get(j).label().equals(wp.label())) {
+                            WaypointStore.remove(j); break;
+                        }
+                    }
+                    break;
+                }
+            }
         }
     }
 
@@ -286,7 +314,8 @@ public final class WaypointRenderer {
         double dz = to.getZ() - from.getZ();
         double angle = Math.toDegrees(Math.atan2(dz, dx));
         if (angle < 0) angle += 360;
-        double relative = angle - playerYaw;
+        // atan2: 0=east, 90=north. Minecraft yaw: 0=south, 90=west. 90° offset.
+        double relative = angle - playerYaw - 90;
         while (relative < 0) relative += 360;
         while (relative >= 360) relative -= 360;
         if (relative < 22.5 || relative >= 337.5) return "\u2191";  // ↑ forward

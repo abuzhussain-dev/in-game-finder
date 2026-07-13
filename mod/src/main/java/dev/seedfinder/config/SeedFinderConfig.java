@@ -43,5 +43,6 @@ public class SeedFinderConfig {
     public static Long getSeed() { return seed; }
     public static void setSeed(long s) { seed = s; save(); }
     public static int getSearchRadiusChunks() { return searchRadiusChunks; }
+    public static void setSearchRadius(int r) { searchRadiusChunks = r; save(); }
     public static boolean hasSeed() { return seed != null; }
 }

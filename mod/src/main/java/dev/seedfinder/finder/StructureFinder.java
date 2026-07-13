@@ -151,8 +151,19 @@ public final class StructureFinder {
             oz = nextIntFromState(state, range);
         }
 
-        // Frequency gating
-        if (type.frequency < 1.0) {
+        // Shared salt group: this salt/spacing/separation is shared across multiple
+        // structure types (e.g. Nether Fortress + Bastion = vanilla nether_complexes).
+        // Use an independent LCG seeded from region coords to determine which type
+        // generates here. The frequency field encodes this type's share of the group.
+        if (type.sharedSaltGroup > 0) {
+            long splitSeed = (long) regionX * 341873128712L
+                           + (long) regionZ * 132897987541L
+                           + seed + type.salt + 9999L;
+            long splitState = (splitSeed ^ 0x5DEECE66DL) & mask;
+            splitState = (splitState * 0x5DEECE66DL + 0xBL) & mask;
+            float split = (splitState >>> 17) / (float) (1 << 31);
+            if (split >= type.frequency) return null;
+        } else if (type.frequency < 1.0) {
             state = (state * 0x5DEECE66DL + 0xBL) & mask;
             float freq = nextFloatFromState(state);
             if (freq >= type.frequency) return null;
