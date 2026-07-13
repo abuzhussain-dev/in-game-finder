@@ -551,9 +551,9 @@ Features:
 | 28 | `a72405a` | fix: resolve all 4 CI build errors for 1.21.11 API | ❌ Run 18 |
 | 29 | `aa2d0da` | fix: use VertexFormats.POSITION_COLOR from net.minecraft.client.render | ✅ Run 19 |
 | 30 | `3298a3d` | fix: NPE guard, live [X] buttons, allWithin panel, deterministic colors, config debounce | ✅ Run 20 |
-| 31 | next SHA | fix: behind-camera culling direction + SMP auto-detect message | ✅ Run 21 |
+| 31 | `214e66e` | fix: behind-camera culling direction + SMP auto-detect message | ✅ Run 21 |
 
-**Local state:** HEAD at next commit, pushing to origin/v2.
+**Local state:** HEAD at `214e66e`, pushing to origin/v2.
 
 ---
 
