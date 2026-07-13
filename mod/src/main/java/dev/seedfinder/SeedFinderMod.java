@@ -33,6 +33,7 @@ public class SeedFinderMod implements ClientModInitializer {
         ));
 
         ClientTickEvents.END_CLIENT_TICK.register(client -> {
+            if (client.world == null) return; // ponytail: guard main menu NPE
             while (openKey.wasPressed()) {
                 MinecraftClient.getInstance().setScreen(new StructurePickerScreen());
             }

@@ -37,6 +37,9 @@ public class SeedFinderConfig {
         } catch (IOException ignored) {}
     }
 
+    /** Set seed in memory without disk write (GUI keystroke debounce). */
+    public static synchronized void setSeedMem(long s) { seed = s; }
+
     public static Long getSeed() { return seed; }
     public static void setSeed(long s) { seed = s; save(); }
     public static int getSearchRadiusChunks() { return searchRadiusChunks; }

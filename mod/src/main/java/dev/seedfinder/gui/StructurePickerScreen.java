@@ -5,6 +5,7 @@ import dev.seedfinder.finder.StructureFinder;
 import dev.seedfinder.finder.StructureType;
 import dev.seedfinder.waypoint.WaypointStore;
 import net.minecraft.client.MinecraftClient;
+import net.minecraft.client.gui.Click;
 import net.minecraft.client.gui.DrawContext;
 import net.minecraft.client.gui.screen.Screen;
 import net.minecraft.client.gui.widget.ButtonWidget;
@@ -28,7 +29,6 @@ public class StructurePickerScreen extends Screen {
         0xFFFFAA00, 0xFF00FFAA, 0xFFAA00FF, 0xFFFF3355, 0xFF33CCFF,
         0xFFFFFF55, 0xFF55FF55, 0xFFFF55FF, 0xFFAAAAAA, 0xFFFF9900
     };
-    private static int colorIdx = 0;
 
     // ─── Alias map ───────────────────────────────────────────────
     private static final Map<String, StructureType> ALIAS_MAP = new HashMap<>();
@@ -164,6 +164,12 @@ public class StructurePickerScreen extends Screen {
             .dimensions(this.width - 164, bottomY, 160, btnH).build());
     }
 
+    @Override
+    public void close() {
+        SeedFinderConfig.save();
+        super.close();
+    }
+
     private void autoDetectSeed() {
         var client = MinecraftClient.getInstance();
         var server = client.getServer();
@@ -180,7 +186,7 @@ public class StructurePickerScreen extends Screen {
     private void onSeedChanged(String text) {
         try {
             long s = Long.parseLong(text.trim());
-            SeedFinderConfig.setSeed(s);
+            SeedFinderConfig.setSeedMem(s);
             showSeedWarning = false;
         } catch (NumberFormatException e) {
             showSeedWarning = text.trim().isEmpty();
@@ -267,13 +273,24 @@ public class StructurePickerScreen extends Screen {
             }
             int dist = (int) Math.sqrt(found.getSquaredDistance(client.player.getBlockPos()));
             String dir = cardinalDirection(client.player.getBlockPos(), found);
-            int color = COLORS[colorIdx % COLORS.length]; colorIdx++;
+            int color = COLORS[type.ordinal() % COLORS.length];
             WaypointStore.add(new WaypointStore.Waypoint(type.displayName, found, color));
+            results.clear();
             results.add(new SearchResult(type, found, color, dist, dir));
+            // Also show other instances of this type (sorted by distance)
+            var all = new java.util.ArrayList<>(StructureFinder.allWithin(seed, type, px, pz, radius));
+            all.sort(java.util.Comparator.comparingDouble(
+                p -> p.getSquaredDistance(client.player.getBlockPos())));
+            for (BlockPos pos : all) {
+                if (pos.equals(found) || results.size() >= 20) continue;
+                int d = (int) Math.sqrt(pos.getSquaredDistance(client.player.getBlockPos()));
+                results.add(new SearchResult(type, pos, color, d,
+                    cardinalDirection(client.player.getBlockPos(), pos)));
+            }
+            rebuildButtons();
             client.player.sendMessage(
                 Text.translatable("seedfinder.msg.found",
                     type.displayName, found.getX(), found.getZ(), dist, dir), false);
-            // Screen stays open — B6 fix
         }, client);
     }
 
@@ -332,6 +349,28 @@ public class StructurePickerScreen extends Screen {
                 ey += 38;
             }
         }
+    }
+
+    @Override
+    public boolean mouseClicked(Click click, boolean doubled) {
+        if (click.buttonInfo().button() == 0 && !results.isEmpty()) {
+            int px = touchDevice ? 4 : (int)(this.width * 0.55);
+            int pw = touchDevice ? this.width - 8 : this.width - px - 4;
+            int py = touchDevice ? this.height - 110 : 50;
+            int ph = touchDevice ? 60 : this.height - 80;
+            int max = Math.min(results.size(), touchDevice ? 2 : (ph - 30) / 38);
+            double mx = click.x();
+            double my = click.y();
+            for (int i = 0; i < max; i++) {
+                int ey = py + 20 + i * 38;
+                int xBtn = px + pw - 24;
+                if (mx >= xBtn && mx <= xBtn + 12 && my >= ey && my <= ey + 12) {
+                    removeResult(i);
+                    return true;
+                }
+            }
+        }
+        return super.mouseClicked(click, doubled);
     }
 
     private static String cardinalDirection(BlockPos from, BlockPos to) {
