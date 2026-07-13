@@ -35,22 +35,22 @@ Workflow:
 2. Use `get_example` with loader="fabric", minecraft_version="1.21.11" for version-accurate code
 3. Prefer working code examples over theoretical explanations
 
-## Checkpoint Rule (MANDATORY)
+## Checkpoint Rule — MANDATORY, NO EXCEPTIONS
 
-Every change, progress update, problem, decision, user request, tool invocation, and result MUST be written to `CHECKPOINT.md` immediately. This ensures context survives compaction, crashes, session restarts, and context-window limits. No detail is too small — if the model knows it, CHECKPOINT.md must contain it.
+Every progress made in this project MUST be written to `CHECKPOINT.md`. The file is the single source of truth — if it's not in CHECKPOINT.md, it didn't happen.
 
 ### Requirements
 
-1. **Update `CHECKPOINT.md` after EVERY action** — code change, config change, CI run, web search, tool invocation, error, anything
-2. **Record ALL of the following in every entry:**
-   - **What changed** — file paths, exact diffs or summaries
-   - **Why** — the reason or user request that drove the change
-   - **Tools used** — which tools were called (Bash, Read, Edit, WebFetch, WebSearch, gh, etc.) and their results
-   - **User statements** — exact quotes of what the user said/requested
-   - **Current task** — what I am actively working on right now
-   - **Errors and fixes** — exact error messages, what was attempted, what fixed it
-   - **Versions** — exact dependency versions, commit SHAs, branch names
-3. **At the start of every session: READ `CHECKPOINT.md` and the plan file FIRST** before doing anything else
-4. **Track all plan steps** with clear ✅ (done) / 🔄 (in progress) / ❌ (failed) / ⏳ (pending) status markers
-5. **CI tracking:** record every run ID, commit SHA, status (✅/❌/🔄), error log, and fix attempted
-6. **Before context compaction or session end:** ensure CHECKPOINT.md is fully up to date
+1. **Update after EVERY action** — feature done, bug fixed, file created, error hit, CI run, anything
+2. **Write ALL of:**
+   - **What changed** — file paths, diffs or summaries
+   - **Why** — user request or reason behind the change
+   - **Tools used** — which tools and results
+   - **User statements** — exact quotes of requests
+   - **Active task** — what's being worked on right now
+   - **Errors** — exact messages, what was tried, what fixed it
+   - **Versions** — dep versions, commit SHAs, branch names
+3. **At session start: read CHECKPOINT.md first** before anything else
+4. **Track all plan steps** with ✅ (done) / 🔄 (in progress) / ❌ (failed) / ⏳ (pending)
+5. **Keep the COMPLETE FILE MAP updated** when files are added/removed
+6. **Before session end: ensure CHECKPOINT.md is fully up to date, commit and push**
