@@ -3,7 +3,7 @@
 ## Active Task
 Pre-push code verification — two compile bugs found and fixed.
 
-## All Changes (Session 2026-07-13)
+## All Changes (Session 2026-07-13 — resumed)
 
 ### Bug Fixes
 
@@ -15,6 +15,9 @@ Pre-push code verification — two compile bugs found and fixed.
 | 4 | `StructureType.java` (+ `StructureFinder.java`) | Nether Fortress & Bastion share same salt (nether_complexes) | Added `sharedSaltGroup` field + independent split LCG |
 | 5 | `StructurePickerScreen.java:148` | Missing `));` closing TextFieldWidget constructor | Changed `Text.literal("Search..."),` → `Text.literal("Search..."));` |
 | 6 | `StructureType.java:46` | END_CITY missing `sharedSaltGroup=0` — only 10 args, constructor needs 11 | Added `, 0` after `Dimension.END` |
+| 7 | `SeedFinderMod.java:39,93-94` | `Window.setCallback()`/`getCallback()` don't exist in 1.21.11 Yarn mappings | Replaced with `GLFW.glfwSetWindowSizeCallback()` chaining — gets prev callback via null set, chains to it |
+| 8 | `StructurePickerScreen.java:248` | `remove(structureButtons.remove(...))` — `StructureButton` can't convert to `Element` | Added `.button()` to unwrap `StructureButton` record |
+| 9 | `StructurePickerScreen.java:275-278` | StructureButton record mismatches in `rebuildButtons()`: `remove()` type error, `setPosition` on wrong type, `set()` type mismatch | Added `.button()`, deleted `old` dead code, wrapped `new StructureButton(btn, t)` |
 
 ### GUI Polish (new)
 

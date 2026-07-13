@@ -245,7 +245,7 @@ public class StructurePickerScreen extends Screen {
 
         // Remove old buttons
         while (structureButtons.size() > filteredTypes.size()) {
-            remove(structureButtons.remove(structureButtons.size() - 1));
+            remove(structureButtons.remove(structureButtons.size() - 1).button());
         }
 
         // Waypoints snapshot for indicator
@@ -272,10 +272,8 @@ public class StructurePickerScreen extends Screen {
             if (filteredTypes.size() == 1) btn.setFocused(true);
 
             if (i < structureButtons.size()) {
-                remove(structureButtons.get(i));
-                var old = structureButtons.get(i);
-                old.setPosition(x, y);
-                structureButtons.set(i, btn);
+                remove(structureButtons.get(i).button());
+                structureButtons.set(i, new StructureButton(btn, t));
             } else {
                 structureButtons.add(new StructureButton(btn, t));
             }

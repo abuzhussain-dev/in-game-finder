@@ -36,7 +36,12 @@ public class SeedFinderMod implements ClientModInitializer {
 
         // ponytail: window resize callback to invalidate touch cache
         var cl = MinecraftClient.getInstance();
-        cl.getWindow().setCallback(new WindowCallback(cl));
+        long handle = cl.getWindow().getHandle();
+        var prev = GLFW.glfwSetWindowSizeCallback(handle, null);
+        GLFW.glfwSetWindowSizeCallback(handle, (w, width, height) -> {
+            TouchUtil.invalidate();
+            if (prev != null) prev.invoke(w, width, height);
+        });
 
         ClientTickEvents.END_CLIENT_TICK.register(client -> {
             if (client.world == null) return;
@@ -81,18 +86,4 @@ public class SeedFinderMod implements ClientModInitializer {
         ctx.fill(x + size - 1, y, x + size, y + size, 0x44000000);
     }
 
-    /**
-     * Window callback wrapper that invalidates touch detection on resize.
-     * ponytail: minimal wrapper, avoids a separate event listener class.
-     */
-    private record WindowCallback(MinecraftClient client)
-            implements org.lwjgl.glfw.GLFWWindowSizeCallbackI {
-        @Override
-        public void invoke(long window, int w, int h) {
-            TouchUtil.invalidate();
-            if (client.getWindow().getCallback() != null) {
-                client.getWindow().getCallback().invoke(window, w, h);
-            }
-        }
-    }
 }
