@@ -22,6 +22,7 @@
 | 4.1 | Phase 5: Android | SeedFinderMod.java (SF button) | ✅ ADDED | ~15 lines |
 | 5.1 | Phase 7: UX Fixes | 3 files — NPE guard, [X] wiring, allWithin panel, colors, config debounce | ✅ DONE (Run 20) | +47/−4 lines |
 | 5.2 | Phase 7: UX Fixes 2 | WaypointRenderer culling fix, SMP auto-detect message | ✅ DONE (Run 21) | +6/−2 lines |
+| 5.3 | Phase 7: UX Fixes 3 | BufferAllocator 8192, HUD arrows, WaypointStore logging | ⏳ PENDING (Run 22) | +25/−6 lines |
 
 ### Bugs Fixed (Phase 1):
 | Bug | Severity | What | Fix |
@@ -504,6 +505,16 @@ Features:
   - B20: SMP auto-detect — shows error message when not in singleplayer
 - **All steps pass:** `:compileJava` ✅, `:processResources` ✅, `:classes` ✅, `:jar` ✅, `:remapJar` ✅
 
+### Run 22 — PENDING (BufferAllocator + HUD arrows + WaypointStore logging) ⏳
+- **Commit:** `17171c3`
+- **URL:** https://github.com/abuzhussain-dev/in-game-finder/actions
+- **Fixes:**
+  - B21: BufferAllocator 256→8192 (accommodates 8 beams × 672 bytes)
+  - B22: HUD directional arrows — Unicode arrows relative to player look direction (↑↗→↘↓↙←↖)
+  - B23: Remove dead `cardinalDirection()` from WaypointRenderer (replaced by directionArrow)
+  - B24: WaypointStore.load() logs warning on JSON corruption instead of silent swallow
+- **CI status:** ⏳ waiting for workflow to complete
+
 ### Run 20 — GREEN BUILD ✅ (quality-of-life fixes)
 - **Commit:** `3298a3d` ("fix: NPE guard, live [X] buttons, allWithin panel, deterministic colors, config debounce")
 - **URL:** https://github.com/abuzhussain-dev/in-game-finder/actions/runs/20
@@ -552,6 +563,7 @@ Features:
 | 29 | `aa2d0da` | fix: use VertexFormats.POSITION_COLOR from net.minecraft.client.render | ✅ Run 19 |
 | 30 | `3298a3d` | fix: NPE guard, live [X] buttons, allWithin panel, deterministic colors, config debounce | ✅ Run 20 |
 | 31 | `214e66e` | fix: behind-camera culling direction + SMP auto-detect message | ✅ Run 21 |
+| 32 | `17171c3` | fix: BufferAllocator size, HUD direction arrows, WaypointStore logging | ⏳ Run 22 |
 
 **Local state:** HEAD at `214e66e`, pushing to origin/v2.
 
