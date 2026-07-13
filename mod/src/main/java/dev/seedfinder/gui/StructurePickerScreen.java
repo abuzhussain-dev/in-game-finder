@@ -55,6 +55,23 @@ public class StructurePickerScreen extends Screen {
         }
     }
 
+    /** Resolve a structure name or alias to a StructureType, or null. */
+    public static StructureType resolveStructure(String input) {
+        String lower = input.toLowerCase().trim();
+        // Try alias map first
+        StructureType alias = ALIAS_MAP.get(lower);
+        if (alias != null) return alias;
+        // Try enum name
+        for (StructureType t : StructureType.values()) {
+            if (t.name().equalsIgnoreCase(lower)) return t;
+        }
+        // Try display name
+        for (StructureType t : StructureType.values()) {
+            if (t.displayName.equalsIgnoreCase(lower)) return t;
+        }
+        return null;
+    }
+
     // ─── Tabs ────────────────────────────────────────────────────
     private enum Tab { OVERWORLD, NETHER, END, ALL }
     private Tab activeTab = Tab.OVERWORLD;

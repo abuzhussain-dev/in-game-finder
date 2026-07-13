@@ -1,7 +1,15 @@
 # SeedFinder Mod — CHECKPOINT
 
 ## Active Task
-Cloth Config integration + compass arc + floating button polish. Ready to commit and push.
+Commands done + resolveStructure() added. Pushing to GH to trigger CI build. Next: StructurePickerScreen rewrite (radar map, Find All, click-to-toggle, etc.).
+
+### Current Changes (uncommitted)
+
+| # | File | Changes |
+|---|------|---------|
+| 1 | `SeedFinderCommand.java` | Added `find`, `list`, `remove`, `tp`, `export`, `config radius` subcommands with auto-complete, clickable chat messages, random mode |
+| 2 | `StructurePickerScreen.java` | Added `resolveStructure()` public static method — resolves aliases/names from commands |
+| 3 | `CHECKPOINT.md` | This update |
 
 ## All Changes (Session 2026-07-13 — resumed)
 
