@@ -113,7 +113,7 @@ public class StructurePickerScreen extends Screen {
             .build());
         addDrawableChild(ButtonWidget.builder(
             Text.literal("\u2699"), btn ->
-                MinecraftClient.getInstance().setScreen(new SeedFinderConfigScreen(this)))
+                MinecraftClient.getInstance().setScreen(SeedFinderConfigScreen.create(this)))
             .dimensions(this.width - 104, 2, 48, touchDevice ? 28 : 18)
             .tooltip(Tooltip.of(Text.literal("Settings")))
             .build());

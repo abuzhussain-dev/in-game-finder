@@ -20,6 +20,7 @@ import net.minecraft.client.render.RenderTickCounter;
 import net.minecraft.client.util.BufferAllocator;
 import net.minecraft.client.util.math.MatrixStack;
 import net.minecraft.util.math.BlockPos;
+import net.minecraft.util.math.RotationAxis;
 import net.minecraft.util.math.Vec3d;
 import net.fabricmc.fabric.api.client.rendering.v1.HudRenderCallback;
 import net.fabricmc.fabric.api.client.rendering.v1.world.WorldRenderContext;
@@ -61,7 +62,7 @@ public final class WaypointRenderer {
     private static final Matrix4f TEXTURE_MATRIX = new Matrix4f();
     private MappableRingBuffer vertexBuffer;
 
-    // Phase 4: performance constants
+    // Performance constants
     private static final int MAX_RENDER_DIST = 2048;
     private static final int MAX_VISIBLE_BEAMS = 8;
     private static final int BEAM_HEIGHT = 32;
@@ -107,10 +108,8 @@ public final class WaypointRenderer {
             BlockPos p = wp.pos();
             double dx = p.getX() - camX, dz = p.getZ() - camZ;
 
-            // Distance culling
             if (dx * dx + dz * dz > (double) MAX_RENDER_DIST * MAX_RENDER_DIST) continue;
 
-            // Behind-camera culling using camera look direction
             Camera cam = client.gameRenderer.getCamera();
             float yawRad = (float) Math.toRadians(cam.getYaw());
             float lookX = -(float) Math.sin(yawRad);
@@ -140,7 +139,6 @@ public final class WaypointRenderer {
         VertexFormat format = drawParams.format();
 
         int vertexBufferSize = drawParams.vertexCount() * format.getVertexSize();
-        // Pre-allocated buffer: at least MAX_WAYPOINTS * estimated size
         int allocSize = Math.max(vertexBufferSize, MAX_WAYPOINTS * 384);
         if (vertexBuffer == null || vertexBuffer.size() < vertexBufferSize) {
             if (vertexBuffer != null) vertexBuffer.close();
@@ -247,6 +245,8 @@ public final class WaypointRenderer {
         }
     }
 
+    // ─── HUD: waypoint list + compass bar ──────────────────────────
+
     private static void renderHud(DrawContext ctx, RenderTickCounter tickCounter) {
         var client = MinecraftClient.getInstance();
         if (client.world == null || client.player == null) return;
@@ -254,36 +254,44 @@ public final class WaypointRenderer {
         var waypoints = WaypointStore.snapshot();
         if (waypoints.isEmpty()) return;
 
+        renderCompassBar(ctx, client, waypoints);
+
         var pp = client.player.getBlockPos();
         List<Waypoint> sorted = waypoints.stream()
             .sorted(Comparator.comparingDouble(w -> pp.getSquaredDistance(w.pos())))
             .limit(8).toList();
         var tr = client.textRenderer;
 
-        float yaw = client.player.getYaw();
-        int maxW = 0;
+        int maxLabelW = 0;
+        int maxCoordW = 0;
         List<String> labelLines = new ArrayList<>();
         List<String> coordLines = new ArrayList<>();
+        List<Float> relAngles = new ArrayList<>();
         for (var wp : sorted) {
             double dist = Math.sqrt(pp.getSquaredDistance(wp.pos()));
-            String dir = directionArrow(pp, wp.pos(), yaw);
-            labelLines.add(wp.label() + "  " + (int) dist + "m " + dir);
+            labelLines.add(wp.label() + "  " + (int) dist + "m");
             coordLines.add("X:" + wp.pos().getX() + " Z:" + wp.pos().getZ());
-            maxW = Math.max(maxW, tr.getWidth(labelLines.get(labelLines.size() - 1))
-                + tr.getWidth(coordLines.get(coordLines.size() - 1)) + 10);
+            relAngles.add(relativeAngle(pp, wp.pos(), client.player.getYaw()));
+            maxLabelW = Math.max(maxLabelW, tr.getWidth(labelLines.get(labelLines.size() - 1)));
+            maxCoordW = Math.max(maxCoordW, tr.getWidth(coordLines.get(coordLines.size() - 1)));
         }
+        int indicatorW = 10;
+        int bgW = maxLabelW + maxCoordW + indicatorW + 30;
         int bgH = 10 + labelLines.size() * 16;
-        ctx.fill(4, 4, maxW + 28, bgH, 0x88000000);
-        // Header: waypoint count
-        ctx.drawText(tr, "Waypoints (" + waypoints.size() + ")", 8, 6, 0xCCCCCC, true);
+        int leftX = 4;
+        ctx.fill(leftX, 4, leftX + bgW, bgH + 4, 0x88000000);
+
+        ctx.drawText(tr, "Waypoints (" + waypoints.size() + ")", leftX + 8, 6, 0xCCCCCC, true);
         for (int i = 0; i < labelLines.size(); i++) {
             int y = 12 + i * 16;
-            ctx.fill(8, y + 3, 16, y + 9, sorted.get(i).color());
-            ctx.drawText(tr, labelLines.get(i), 20, y, 0xFFFFFF, true);
-            ctx.drawText(tr, coordLines.get(i), 20, y + 8, 0x888888, false);
+            ctx.fill(leftX + 8, y + 3, leftX + 16, y + 9, sorted.get(i).color());
+            ctx.drawText(tr, labelLines.get(i), leftX + 20, y, 0xFFFFFF, true);
+            ctx.drawText(tr, coordLines.get(i), leftX + 20, y + 8, 0x888888, false);
+            // Drawn direction indicator
+            drawDirectionIndicator(ctx, leftX + 20 + maxLabelW + 6, y + 4, relAngles.get(i), sorted.get(i).color());
         }
 
-        // Click-to-remove on HUD entry (same wasLeftButtonClicked pattern as floating button)
+        // Click-to-remove on HUD entry
         if (client.mouse.wasLeftButtonClicked()) {
             double mx = client.mouse.getX() * client.getWindow().getScaledWidth()
                 / client.getWindow().getWidth();
@@ -291,8 +299,7 @@ public final class WaypointRenderer {
                 / client.getWindow().getHeight();
             for (int i = 0; i < labelLines.size(); i++) {
                 int y = 12 + i * 16;
-                int xRight = 4 + maxW + 28;
-                // Click on the right side of the HUD entry = delete
+                int xRight = leftX + bgW;
                 if (mx >= xRight - 12 && mx <= xRight && my >= y && my <= y + 14) {
                     var wp = sorted.get(i);
                     var snap = WaypointStore.snapshot();
@@ -308,24 +315,82 @@ public final class WaypointRenderer {
         }
     }
 
-    /** Arrow showing direction relative to player's look direction. */
-    private static String directionArrow(BlockPos from, BlockPos to, float playerYaw) {
-        double dx = to.getX() - from.getX();
-        double dz = to.getZ() - from.getZ();
-        double angle = Math.toDegrees(Math.atan2(dz, dx));
-        if (angle < 0) angle += 360;
-        // atan2: 0=east, 90=north. Minecraft yaw: 0=south, 90=west. 90° offset.
-        double relative = angle - playerYaw - 90;
-        while (relative < 0) relative += 360;
-        while (relative >= 360) relative -= 360;
-        if (relative < 22.5 || relative >= 337.5) return "\u2191";  // ↑ forward
-        if (relative < 67.5) return "\u2197";  // ↗ right-front
-        if (relative < 112.5) return "\u2192"; // → right
-        if (relative < 157.5) return "\u2198"; // ↘ right-back
-        if (relative < 202.5) return "\u2193"; // ↓ back
-        if (relative < 247.5) return "\u2199"; // ↙ left-back
-        if (relative < 292.5) return "\u2190"; // ← left
-        return "\u2196"; // ↖ left-front
+    /** Compass bar at top-center showing N/E/S/W with waypoint bearings. */
+    private static void renderCompassBar(DrawContext ctx, MinecraftClient client, List<Waypoint> waypoints) {
+        var tr = client.textRenderer;
+        int sw = client.getWindow().getScaledWidth();
+        int barW = Math.min(sw - 40, 240);
+        int barX = (sw - barW) / 2;
+        int barY = 4;
+        int barH = 12;
+
+        ctx.fill(barX, barY, barX + barW, barY + barH, 0x88000000);
+        // Center line
+        ctx.fill(barX + barW / 2 - 1, barY, barX + barW / 2 + 1, barY + barH, 0x44FFFFFF);
+
+        // Convert player yaw (Minecraft: 0=S, 90=W, ±180=N, -90=E) to north-based bearing
+        float facingBearing = ((client.player.getYaw() % 360) + 360 + 180) % 360;
+        int centerX = barX + barW / 2;
+
+        // Direction labels
+        String[] dirs = {"N", "NE", "E", "SE", "S", "SW", "W", "NW"};
+        int[] bearings = {0, 45, 90, 135, 180, 225, 270, 315};
+        for (int i = 0; i < dirs.length; i++) {
+            float rel = normalizeAngle(bearings[i] - facingBearing);
+            float x = centerX + (rel / 180f) * (barW / 2f);
+            if (x >= barX + 2 && x <= barX + barW - 2) {
+                boolean cardinal = dirs[i].length() == 1;
+                ctx.drawText(tr, dirs[i], (int) x - tr.getWidth(dirs[i]) / 2, barY + 2,
+                    cardinal ? 0xFFFFFF : 0x666666, false);
+            }
+        }
+
+        // Waypoint bearing ticks
+        var pp = client.player.getBlockPos();
+        for (var wp : waypoints) {
+            double bearing = bearingFromNorth(pp, wp.pos());
+            float rel = normalizeAngle((float) bearing - facingBearing);
+            float x = centerX + (rel / 180f) * (barW / 2f);
+            if (x >= barX + 2 && x <= barX + barW - 2) {
+                ctx.fill((int) x - 1, barY + barH - 4, (int) x + 2, barY + barH - 1, wp.color());
+            }
+        }
     }
 
+    /** Draw a small rotated triangle pointing in the given relative angle. */
+    private static void drawDirectionIndicator(DrawContext ctx, int x, int y, float relAngle, int color) {
+        var matrices = ctx.getMatrices();
+        matrices.push();
+        matrices.translate(x + 4, y + 4, 0);
+        matrices.multiply(RotationAxis.POSITIVE_Z.rotationDegrees(relAngle));
+        // Upward-pointing arrow
+        ctx.fill(-1, -4, 1, 5, color);           // shaft
+        ctx.fill(-4, -2, 4, 0, color);            // crossbar
+        matrices.pop();
+    }
+
+    /** Bearing from player to target, in degrees from north (0=N, 90=E, 180=S, 270=W). */
+    private static double bearingFromNorth(BlockPos from, BlockPos to) {
+        double dx = to.getX() - from.getX();
+        double dz = to.getZ() - from.getZ();
+        double raw = 90 - Math.toDegrees(Math.atan2(dz, dx));
+        if (raw < 0) raw += 360;
+        return raw;
+    }
+
+    /** Returns the clockwise angle difference from player yaw to waypoint, in degrees the indicator should rotate (0=up=forward). */
+    private static float relativeAngle(BlockPos from, BlockPos to, float playerYaw) {
+        double bearing = bearingFromNorth(from, to);
+        float facingBearing = ((playerYaw % 360) + 360 + 180) % 360;
+        float rel = normalizeAngle((float) bearing - facingBearing);
+        // rel=0 means waypoint is directly ahead → indicator points up (0° rotation)
+        return rel;
+    }
+
+    /** Normalize angle to -180..180. */
+    private static float normalizeAngle(float a) {
+        while (a < -180) a += 360;
+        while (a > 180) a -= 360;
+        return a;
+    }
 }

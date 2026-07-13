@@ -1,57 +1,52 @@
 # SeedFinder Mod — CHECKPOINT
 
 ## Active Task
-Pre-push code verification — two compile bugs found and fixed.
+Cloth Config integration + compass arc + floating button polish. Ready to commit and push.
 
 ## All Changes (Session 2026-07-13 — resumed)
 
-### Bug Fixes
+### Bug Fixes (previous)
 
 | # | File | Bug | Fix |
-|---|------|-----|-----|
+|---|------|-----|------|
 | 1 | `WaypointRenderer.java:289` | HUD arrows 90° rotated | Added `- 90` offset to `relative` angle calculation |
 | 2 | `StructurePickerScreen.java:270` | NPE if player disconnects mid-async-search | Added `if (client.player == null) return;` |
 | 3 | `SeedFinderMod.java:52-58` | Floating SF button rendered but non-clickable on mobile | Added `mouse.wasLeftButtonClicked()` hit-test |
 | 4 | `StructureType.java` (+ `StructureFinder.java`) | Nether Fortress & Bastion share same salt (nether_complexes) | Added `sharedSaltGroup` field + independent split LCG |
 | 5 | `StructurePickerScreen.java:148` | Missing `));` closing TextFieldWidget constructor | Changed `Text.literal("Search..."),` → `Text.literal("Search..."));` |
 | 6 | `StructureType.java:46` | END_CITY missing `sharedSaltGroup=0` — only 10 args, constructor needs 11 | Added `, 0` after `Dimension.END` |
-| 7 | `SeedFinderMod.java:39,93-94` | `Window.setCallback()`/`getCallback()` don't exist in 1.21.11 Yarn mappings | Replaced with `GLFW.glfwSetWindowSizeCallback()` chaining — gets prev callback via null set, chains to it |
-| 8 | `StructurePickerScreen.java:248` | `remove(structureButtons.remove(...))` — `StructureButton` can't convert to `Element` | Added `.button()` to unwrap `StructureButton` record |
-| 9 | `StructurePickerScreen.java:275-278` | StructureButton record mismatches in `rebuildButtons()`: `remove()` type error, `setPosition` on wrong type, `set()` type mismatch | Added `.button()`, deleted `old` dead code, wrapped `new StructureButton(btn, t)` |
+| 7 | `SeedFinderMod.java:39,93-94` | `Window.setCallback()`/`getCallback()` don't exist in 1.21.11 Yarn mappings | Replaced with `GLFW.glfwSetWindowSizeCallback()` chaining |
+| 8 | `StructurePickerScreen.java:248` | `remove(structureButtons.remove(...))` type mismatch | Added `.button()` to unwrap `StructureButton` record |
+| 9 | `StructurePickerScreen.java:275-278` | StructureButton record mismatches in `rebuildButtons()` | Added `.button()`, deleted dead code, wrapped `new StructureButton(btn, t)` |
 
-### GUI Polish (new)
+### GUI Polish + Build Changes (current session)
 
 | # | What | Details |
 |---|------|---------|
-| 1 | **StructurePickerScreen full rewrite** | Vanilla widgets, no libs needed |
-|   | → Tab filtering | Overworld / Nether / End / All |
-|   | → Live search field | Filters by name + aliases (ac, tc, po, etc.) |
-|   | → Tooltips on hover | Shows spacing, separation, dimension |
-|   | → Waypoint indicators | ✓ checkmark on already-found types |
-|   | → Results panel | Scrollable, shows X/Z/dist/direction per result |
-|   | → [X] remove button per result | Removes waypoint + closes result |
-|   | → Mouse scroll support | Scrolls structure list + results |
-|   | → Width-responsive layout | 1 column on mobile, 2 on desktop |
-| 2 | **TouchUtil.java** (new) | Shared touch detection replaces duplicate code |
-| 3 | **SeedFinderConfigScreen.java** (new) | Vanilla SliderWidget for search radius (100-10000) |
-| 4 | **SeedFinderMod.java** improved | Better floating button (dark blue + border), window resize callback, uses TouchUtil |
-| 5 | **WaypointRenderer.java** HUD improved | Shows coords + waypoint count, click-to-remove from HUD |
-| 6 | **SeedFinderConfig.java** updated | Added `setSearchRadius()` + `hasSeed()` |
-| 7 | **No translatable keys** | All `Text.translatable` → `Text.literal` (no lang file dep) |
+| 1 | **Cloth Config integration** | `build.gradle`: added shedaniel maven repo + `cloth-config-fabric:15.0.0+1.21.11` dep + `include` for JAR-in-JAR |
+| 2 | **`gradle.properties`** | Added `cloth_version=15.0.0+1.21.11` |
+| 3 | **`SeedFinderConfigScreen.java` rewrite** | Replaced vanilla SliderWidget with Cloth Config `ConfigBuilder` — auto-generated UI, same save/load |
+| 4 | **`StructurePickerScreen.java`** | Updated settings button to use `SeedFinderConfigScreen.create(this)` factory |
+| 5 | **`WaypointRenderer.java` — compass bar** | New `renderCompassBar()` — top-center bar showing N/NE/E/SE/S/SW/W/NW with waypoint bearing ticks |
+| 6 | **`WaypointRenderer.java` — drawn indicators** | Replaced unicode arrows (`↑↗→↘↓↙←↖`) with `drawDirectionIndicator()` — rotated arrow via `MatrixStack` + `RotationAxis` |
+| 7 | **`WaypointRenderer.java` — bearing math** | `relativeAngle()` computes precise bearing delta for direction indicator; `bearingFromNorth()` for compass |
+| 8 | **`SeedFinderMod.java` — floating button** | Drop shadow + hover feedback (brighter when mouse over) + border glow on hover |
+| 9 | **No translatable keys** | All `Text.translatable` → `Text.literal` (no lang file dep) |
 
 ### File Manifest
 
 ```
 src/main/java/dev/seedfinder/
-  SeedFinderMod.java              — Entry, G keybind, SF button (mobile)
+  SeedFinderMod.java              — Entry, G keybind, SF button (mobile + hover)
   command/SeedFinderCommand.java  — /seedfinder open|seed|clear
   config/SeedFinderConfig.java    — Properties-backed config (seed, radius)
   finder/StructureFinder.java     — Scatter/stronghold locator, inline LCG, shared salt
   finder/StructureType.java       — 18 types, sharedSaltGroup field
   gui/StructurePickerScreen.java  — Full GUI: tabs, search, tooltips, scroll, results
-  gui/SeedFinderConfigScreen.java — Radius slider screen
+  gui/SeedFinderConfigScreen.java — Cloth Config screen (ConfigBuilder)
   util/TouchUtil.java             — Shared touch detection
-  waypoint/WaypointRenderer.java  — Custom RenderPipeline, NO_DEPTH_TEST, 32-block beams
+  waypoint/WaypointRenderer.java  — Custom RenderPipeline, NO_DEPTH_TEST, 32-block beams,
+                                    compass bar HUD, drawn direction indicators
   waypoint/WaypointStore.java     — Thread-safe JSON persistence
 
 .claude/
@@ -60,7 +55,7 @@ src/main/java/dev/seedfinder/
   commands/check-render.json — Render review slash command
 
 .claudeignore          — Context window filter
-CHECKPOINT.md          — This file (project state)
+CHECKPOINT.md          — This file (project state, session 2026-07-13)
 ```
 
 ### StructureType.sharedSaltGroup Design
@@ -73,5 +68,12 @@ CHECKPOINT.md          — This file (project state)
 ### Build Details
 - Minecraft 1.21.11, Fabric Loader 0.18.1, Fabric API 0.141.4
 - Yarn mappings 1.21.11+build.6, Java 21, Gradle 8.11
-- **No external Maven deps** — pure Fabric API + vanilla mc
+- Cloth Config 15.0.0+1.21.11 (JAR-in-JAR via `include`)
 - Branch: v2
+
+### User Request (session summary)
+- User analyzed 3 options for GUI libs and recommended **Option 3 (Vanilla + Cloth Config)**:
+  - Rejected Vexel (unknown author)
+  - Rejected SGL (CDN download hack, fragile)
+  - Approved Cloth Config (battle-tested, on Maven Central)
+  - "Go Option 3. The StructurePickerScreen rewrite without SGL is maybe +50 lines over the SGL version — not enough to justify a dependency on a CDN-downloaded library or an unknown author's Maven server."

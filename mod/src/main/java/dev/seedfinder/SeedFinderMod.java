@@ -69,21 +69,34 @@ public class SeedFinderMod implements ClientModInitializer {
         });
     }
 
-    /** Draw a rounded-ish floating action button. */
+    /** Draw a floating action button with shadow + hover feedback. */
     private static void renderFloatingButton(DrawContext ctx, int x, int y, int size) {
-        // Background circle (approximate with filled rect + inset)
-        ctx.fill(x, y, x + size, y + size, 0xCC0066FF);
-        // Inner lighter square
-        ctx.fill(x + 4, y + 4, x + size - 4, y + size - 4, 0xDD0088FF);
+        var client = MinecraftClient.getInstance();
+        boolean hovered = false;
+        if (client.mouse != null) {
+            double mx = client.mouse.getX() * client.getWindow().getScaledWidth()
+                / client.getWindow().getWidth();
+            double my = client.mouse.getY() * client.getWindow().getScaledHeight()
+                / client.getWindow().getHeight();
+            hovered = mx >= x && mx <= x + size && my >= y && my <= y + size;
+        }
+        // Drop shadow
+        ctx.fill(x + 2, y + 2, x + size + 2, y + size + 2, 0x44000000);
+        // Background
+        int bg = hovered ? 0xDD0088FF : 0xCC0066FF;
+        ctx.fill(x, y, x + size, y + size, bg);
+        // Inner highlight
+        ctx.fill(x + 4, y + 4, x + size - 4, y + size - 4, hovered ? 0xEE22AAFF : 0xDD0088FF);
         // Label
-        var tr = MinecraftClient.getInstance().textRenderer;
+        var tr = client.textRenderer;
         ctx.drawText(tr, "SF", x + size / 2 - tr.getWidth("SF") / 2,
             y + size / 2 - 4, 0xFFFFFF, true);
         // Border
-        ctx.fill(x, y, x + size, y + 1, 0x44000000);
-        ctx.fill(x, y + size - 1, x + size, y + size, 0x44000000);
-        ctx.fill(x, y, x + 1, y + size, 0x44000000);
-        ctx.fill(x + size - 1, y, x + size, y + size, 0x44000000);
+        int border = hovered ? 0x66FFFFFF : 0x44000000;
+        ctx.fill(x, y, x + size, y + 1, border);
+        ctx.fill(x, y + size - 1, x + size, y + size, border);
+        ctx.fill(x, y, x + 1, y + size, border);
+        ctx.fill(x + size - 1, y, x + size, y + size, border);
     }
 
 }
