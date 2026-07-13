@@ -20,7 +20,6 @@ import net.minecraft.client.render.RenderTickCounter;
 import net.minecraft.client.util.BufferAllocator;
 import net.minecraft.client.util.math.MatrixStack;
 import net.minecraft.util.math.BlockPos;
-import net.minecraft.util.math.RotationAxis;
 import net.minecraft.util.math.Vec3d;
 import net.fabricmc.fabric.api.client.rendering.v1.HudRenderCallback;
 import net.fabricmc.fabric.api.client.rendering.v1.world.WorldRenderContext;
@@ -357,16 +356,19 @@ public final class WaypointRenderer {
         }
     }
 
-    /** Draw a small rotated triangle pointing in the given relative angle. */
+    /** Draw a direction indicator: center dot + tip dot pointing in the relative angle. */
     private static void drawDirectionIndicator(DrawContext ctx, int x, int y, float relAngle, int color) {
-        var matrices = ctx.getMatrices();
-        matrices.push();
-        matrices.translate(x + 4, y + 4, 0);
-        matrices.multiply(RotationAxis.POSITIVE_Z.rotationDegrees(relAngle));
-        // Upward-pointing arrow
-        ctx.fill(-1, -4, 1, 5, color);           // shaft
-        ctx.fill(-4, -2, 4, 0, color);            // crossbar
-        matrices.pop();
+        int cx = x + 4;
+        int cy = y + 4;
+        double rad = Math.toRadians(relAngle);
+        double sin = Math.sin(rad);
+        double cos = -Math.cos(rad); // flip Y for screen coords
+        // Center dot
+        ctx.fill(cx - 1, cy - 1, cx + 1, cy + 1, color);
+        // Direction tip
+        int tx = cx + (int) Math.round(sin * 4);
+        int ty = cy + (int) Math.round(cos * 4);
+        ctx.fill(tx - 1, ty - 1, tx + 1, ty + 1, 0xFFFFFF);
     }
 
     /** Bearing from player to target, in degrees from north (0=N, 90=E, 180=S, 270=W). */
