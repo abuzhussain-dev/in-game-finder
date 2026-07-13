@@ -497,8 +497,8 @@ Features:
 - **All steps pass:** `:compileJava` ✅, `:processResources` ✅, `:classes` ✅, `:jar` ✅, `:remapJar` ✅
 
 ### Run 21 — GREEN BUILD ✅ (culling + SMP fixes)
-- **Commit:** next commit SHA
-- **URL:** will update after push
+- **Commit:** `214e66e` + `8fc5d9e`
+- **URL:** https://github.com/abuzhussain-dev/in-game-finder/actions/runs/29241200207
 - **Fixes:**
   - B19: Behind-camera culling — uses camera yaw forward vector instead of camera position
   - B20: SMP auto-detect — shows error message when not in singleplayer
