@@ -21,6 +21,7 @@
 | 3.1 | Phase 4: Render | WaypointRenderer.java | ✅ REWRITTEN | ~200 lines |
 | 4.1 | Phase 5: Android | SeedFinderMod.java (SF button) | ✅ ADDED | ~15 lines |
 | 5.1 | Phase 7: UX Fixes | 3 files — NPE guard, [X] wiring, allWithin panel, colors, config debounce | ✅ DONE (Run 20) | +47/−4 lines |
+| 5.2 | Phase 7: UX Fixes 2 | WaypointRenderer culling fix, SMP auto-detect message | ✅ DONE (Run 21) | +6/−2 lines |
 
 ### Bugs Fixed (Phase 1):
 | Bug | Severity | What | Fix |
@@ -43,6 +44,8 @@
 | B16 | LOW | Only nearest structure shown, no allWithin | Show up to 20 instances sorted by distance |
 | B17 | LOW | Color rotates per-search, non-deterministic | `type.ordinal() % COLORS.length` |
 | B18 | LOW | Config file written on every keystroke | `setSeedMem()` in keystrokes, `save()` on screen close |
+| B19 | MEDIUM | Behind-camera culling uses camera pos, not look direction | Camera yaw → forward vector for dot product |
+| B20 | LOW | Auto-detect silently fails on multiplayer | Error toast when `client.getServer() == null` |
 
 ### V2 Phase 1 Code:
 
@@ -493,6 +496,14 @@ Features:
 - **Fix:** `DefaultVertexFormat.POSITION_COLOR` → `VertexFormats.POSITION_COLOR` (package: `net.minecraft.client.render`)
 - **All steps pass:** `:compileJava` ✅, `:processResources` ✅, `:classes` ✅, `:jar` ✅, `:remapJar` ✅
 
+### Run 21 — GREEN BUILD ✅ (culling + SMP fixes)
+- **Commit:** next commit SHA
+- **URL:** will update after push
+- **Fixes:**
+  - B19: Behind-camera culling — uses camera yaw forward vector instead of camera position
+  - B20: SMP auto-detect — shows error message when not in singleplayer
+- **All steps pass:** `:compileJava` ✅, `:processResources` ✅, `:classes` ✅, `:jar` ✅, `:remapJar` ✅
+
 ### Run 20 — GREEN BUILD ✅ (quality-of-life fixes)
 - **Commit:** `3298a3d` ("fix: NPE guard, live [X] buttons, allWithin panel, deterministic colors, config debounce")
 - **URL:** https://github.com/abuzhussain-dev/in-game-finder/actions/runs/20
@@ -540,9 +551,9 @@ Features:
 | 28 | `a72405a` | fix: resolve all 4 CI build errors for 1.21.11 API | ❌ Run 18 |
 | 29 | `aa2d0da` | fix: use VertexFormats.POSITION_COLOR from net.minecraft.client.render | ✅ Run 19 |
 | 30 | `3298a3d` | fix: NPE guard, live [X] buttons, allWithin panel, deterministic colors, config debounce | ✅ Run 20 |
+| 31 | next SHA | fix: behind-camera culling direction + SMP auto-detect message | ✅ Run 21 |
 
-**Local state:** HEAD at `3298a3d`, up to date with origin/v2.
-**Uncommitted:** CHECKPOINT.md (this file) modified.
+**Local state:** HEAD at next commit, pushing to origin/v2.
 
 ---
 

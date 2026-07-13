@@ -110,8 +110,11 @@ public final class WaypointRenderer {
             // Distance culling
             if (dx * dx + dz * dz > (double) MAX_RENDER_DIST * MAX_RENDER_DIST) continue;
 
-            // Behind-camera culling
-            float lookX = (float) camera.x, lookZ = (float) camera.z;
+            // Behind-camera culling using camera look direction
+            Camera cam = client.gameRenderer.getCamera();
+            float yawRad = (float) Math.toRadians(cam.getYaw());
+            float lookX = -(float) Math.sin(yawRad);
+            float lookZ = (float) Math.cos(yawRad);
             if (dx * lookX + dz * lookZ < -200) continue;
 
             float r = ((wp.color() >> 16) & 0xFF) / 255f;

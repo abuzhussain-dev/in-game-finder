@@ -180,6 +180,10 @@ public class StructurePickerScreen extends Screen {
                 seedField.setText(Long.toString(worldSeed));
                 showSeedWarning = false;
             }
+        } else if (client.player != null) {
+            client.player.sendMessage(
+                Text.literal("Cannot auto-detect seed on multiplayer. Enter seed manually.")
+                    .formatted(Formatting.RED), false);
         }
     }
 
