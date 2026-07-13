@@ -46,7 +46,7 @@ public final class WaypointRenderer {
         java.util.Optional.empty(), java.util.Optional.empty(),
         java.util.Optional.empty(), java.util.Optional.empty(), java.util.Optional.empty(),
         java.util.Optional.empty(),
-        java.util.Optional.of(com.mojang.blaze3d.vertex.DefaultVertexFormat.POSITION_COLOR),
+        java.util.Optional.of(net.minecraft.client.render.VertexFormats.POSITION_COLOR),
         java.util.Optional.of(VertexFormat.DrawMode.QUADS)
     );
     private static final RenderPipeline FILLED_THROUGH_WALLS = RenderPipelines.register(
