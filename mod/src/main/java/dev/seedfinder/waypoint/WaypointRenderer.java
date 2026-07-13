@@ -54,7 +54,7 @@ public final class WaypointRenderer {
             .withLocation(net.minecraft.util.Identifier.of("seedfinder", "pipeline/debug_filled_box_through_walls"))
             .build()
     );
-    private static final BufferAllocator allocator = new BufferAllocator(256);
+    private static final BufferAllocator allocator = new BufferAllocator(8192);
     private BufferBuilder buffer;
     private static final Vector4f COLOR_MODULATOR = new Vector4f(1f, 1f, 1f, 1f);
     private static final Vector3f MODEL_OFFSET = new Vector3f();
@@ -259,11 +259,14 @@ public final class WaypointRenderer {
             .sorted(Comparator.comparingDouble(w -> pp.getSquaredDistance(w.pos())))
             .limit(8).toList();
         var tr = client.textRenderer;
+
+        // Player yaw: 0 = south, 90 = west, 180 = north, 270 = east
+        float yaw = client.player.getYaw();
         int maxW = 0;
         List<String> lines = new ArrayList<>();
         for (var wp : sorted) {
             double dist = Math.sqrt(pp.getSquaredDistance(wp.pos()));
-            String dir = cardinalDirection(pp, wp.pos());
+            String dir = directionArrow(pp, wp.pos(), yaw);
             String line = wp.label() + "  " + (int) dist + "m " + dir;
             lines.add(line);
             maxW = Math.max(maxW, tr.getWidth(line));
@@ -277,12 +280,23 @@ public final class WaypointRenderer {
         }
     }
 
-    private static String cardinalDirection(BlockPos from, BlockPos to) {
+    /** Arrow showing direction relative to player's look direction. */
+    private static String directionArrow(BlockPos from, BlockPos to, float playerYaw) {
         double dx = to.getX() - from.getX();
         double dz = to.getZ() - from.getZ();
         double angle = Math.toDegrees(Math.atan2(dz, dx));
         if (angle < 0) angle += 360;
-        String[] dirs = {"E", "SE", "S", "SW", "W", "NW", "N", "NE"};
-        return dirs[(int) Math.round(angle / 45.0) % 8];
+        double relative = angle - playerYaw;
+        while (relative < 0) relative += 360;
+        while (relative >= 360) relative -= 360;
+        if (relative < 22.5 || relative >= 337.5) return "\u2191";  // ↑ forward
+        if (relative < 67.5) return "\u2197";  // ↗ right-front
+        if (relative < 112.5) return "\u2192"; // → right
+        if (relative < 157.5) return "\u2198"; // ↘ right-back
+        if (relative < 202.5) return "\u2193"; // ↓ back
+        if (relative < 247.5) return "\u2199"; // ↙ left-back
+        if (relative < 292.5) return "\u2190"; // ← left
+        return "\u2196"; // ↖ left-front
     }
+
 }

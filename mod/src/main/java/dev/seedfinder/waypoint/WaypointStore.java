@@ -3,6 +3,8 @@ package dev.seedfinder.waypoint;
 import net.fabricmc.loader.api.FabricLoader;
 import net.minecraft.util.math.BlockPos;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -13,6 +15,7 @@ import java.util.List;
 public final class WaypointStore {
     public record Waypoint(String label, BlockPos pos, int color) {}
 
+    private static final Logger LOGGER = LoggerFactory.getLogger(WaypointStore.class);
     private static final Path SAVE_FILE =
         FabricLoader.getInstance().getConfigDir().resolve("seedfinder-waypoints.json");
     private static final List<Waypoint> WAYPOINTS = new ArrayList<>();
@@ -51,7 +54,9 @@ public final class WaypointStore {
                 long colorHex = Long.parseLong(extractStr(entry, "color").replace("0x", ""), 16);
                 WAYPOINTS.add(new Waypoint(label, new BlockPos(x, y, z), (int) colorHex));
             }
-        } catch (Exception ignored) {}
+        } catch (Exception e) {
+            LOGGER.warn("Failed to parse waypoints file, starting fresh: {}", e.getMessage());
+        }
     }
 
     private static synchronized void save() {
