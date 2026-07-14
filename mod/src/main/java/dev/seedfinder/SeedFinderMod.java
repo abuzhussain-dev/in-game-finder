@@ -34,14 +34,16 @@ public class SeedFinderMod implements ClientModInitializer {
             KeyBinding.Category.create(Identifier.of("key.categories.seedfinder"))
         ));
 
-        // ponytail: window resize callback to invalidate touch cache
+        // Window resize callback to invalidate touch cache (may be null on mobile/Android)
         var cl = MinecraftClient.getInstance();
-        long handle = cl.getWindow().getHandle();
-        var prev = GLFW.glfwSetWindowSizeCallback(handle, null);
-        GLFW.glfwSetWindowSizeCallback(handle, (w, width, height) -> {
-            TouchUtil.invalidate();
-            if (prev != null) prev.invoke(w, width, height);
-        });
+        if (cl.getWindow() != null) {
+            long handle = cl.getWindow().getHandle();
+            var prev = GLFW.glfwSetWindowSizeCallback(handle, null);
+            GLFW.glfwSetWindowSizeCallback(handle, (w, width, height) -> {
+                TouchUtil.invalidate();
+                if (prev != null) prev.invoke(w, width, height);
+            });
+        }
 
         ClientTickEvents.END_CLIENT_TICK.register(client -> {
             if (client.world == null) return;
