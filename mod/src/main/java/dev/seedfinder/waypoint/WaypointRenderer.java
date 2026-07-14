@@ -49,11 +49,21 @@ public final class WaypointRenderer {
         java.util.Optional.of(net.minecraft.client.render.VertexFormats.POSITION_COLOR),
         java.util.Optional.of(VertexFormat.DrawMode.QUADS)
     );
-    private static final RenderPipeline FILLED_THROUGH_WALLS = RenderPipelines.register(
-        RenderPipeline.builder(new RenderPipeline.Snippet[]{FILLED_SNIPPET})
-            .withLocation(net.minecraft.util.Identifier.of("seedfinder", "pipeline/debug_filled_box_through_walls"))
-            .build()
-    );
+    private static final RenderPipeline FILLED_THROUGH_WALLS;
+    static {
+        RenderPipeline p;
+        try {
+            p = RenderPipelines.register(
+                RenderPipeline.builder(new RenderPipeline.Snippet[]{FILLED_SNIPPET})
+                    .withLocation(net.minecraft.util.Identifier.of("seedfinder", "pipeline/debug_filled_box_through_walls"))
+                    .build()
+            );
+        } catch (Exception e) {
+            System.err.println("[SeedFinder] Custom pipeline not supported (e.g. MobileGlues on Android) — disabling 3D waypoint beams");
+            p = null;
+        }
+        FILLED_THROUGH_WALLS = p;
+    }
     private static final BufferAllocator allocator = new BufferAllocator(8192);
     private BufferBuilder buffer;
     private static final Vector4f COLOR_MODULATOR = new Vector4f(1f, 1f, 1f, 1f);
@@ -81,7 +91,7 @@ public final class WaypointRenderer {
         if (client.world == null || client.player == null) return;
 
         var waypoints = WaypointStore.snapshot();
-        if (waypoints.isEmpty()) return;
+        if (waypoints.isEmpty() || FILLED_THROUGH_WALLS == null) return;
 
         VertexFormat.DrawMode mode = FILLED_THROUGH_WALLS.getVertexFormatMode();
         VertexFormat fmt = FILLED_THROUGH_WALLS.getVertexFormat();
