@@ -3,6 +3,7 @@ package dev.seedfinder.command;
 import com.mojang.brigadier.arguments.IntegerArgumentType;
 import com.mojang.brigadier.arguments.LongArgumentType;
 import com.mojang.brigadier.arguments.StringArgumentType;
+import com.mojang.brigadier.context.CommandContext;
 import com.mojang.brigadier.suggestion.SuggestionProvider;
 import dev.seedfinder.config.SeedFinderConfig;
 import dev.seedfinder.finder.StructureFinder;
@@ -117,16 +118,17 @@ public final class SeedFinderCommand {
                     var pp = client.player != null ? client.player.getBlockPos() : BlockPos.ORIGIN;
                     for (int i = 0; i < wps.size(); i++) {
                         var wp = wps.get(i);
+                        int idx = i;
                         int dist = (int) Math.sqrt(pp.getSquaredDistance(wp.pos()));
                         String dir = cardinalDirection(pp, wp.pos());
                         Text remove = Text.literal(" [X]").styled(s ->
                             s.withColor(Formatting.RED)
-                                .withClickEvent(new ClickEvent(ClickEvent.Action.RUN_COMMAND, "/seedfinder remove " + i))
-                                .withHoverEvent(new HoverEvent(HoverEvent.Action.SHOW_TEXT, Text.literal("Remove"))));
+                                .withClickEvent(new ClickEvent.RunCommand("/seedfinder remove " + idx))
+                                .withHoverEvent(new HoverEvent.ShowText(Text.literal("Remove"))));
                         Text tp = Text.literal(" [TP]").styled(s ->
                             s.withColor(Formatting.GREEN)
-                                .withClickEvent(new ClickEvent(ClickEvent.Action.RUN_COMMAND, "/tp @p " + wp.pos().getX() + " ~ " + wp.pos().getZ()))
-                                .withHoverEvent(new HoverEvent(HoverEvent.Action.SHOW_TEXT, Text.literal("Teleport"))));
+                                .withClickEvent(new ClickEvent.RunCommand("/tp @p " + wp.pos().getX() + " ~ " + wp.pos().getZ()))
+                                .withHoverEvent(new HoverEvent.ShowText(Text.literal("Teleport"))));
                         ctx.getSource().sendFeedback(Text.literal(
                             i + ". " + wp.label() + " X:" + wp.pos().getX() + " Z:" + wp.pos().getZ()
                             + " " + dist + "m " + dir).append(remove).append(tp));
@@ -169,7 +171,7 @@ public final class SeedFinderCommand {
                         var snap = WaypointStore.snapshot();
                         if (idx >= 0 && idx < snap.size()) {
                             var pos = snap.get(idx).pos();
-                            client.player.networkHandler.sendCommand("tp @p " + pos.getX() + " ~ " + pos.getZ());
+                            client.player.networkHandler.sendChatCommand("tp @p " + pos.getX() + " ~ " + pos.getZ());
                             ctx.getSource().sendFeedback(Text.literal("Teleported to " + snap.get(idx).label() + "."));
                         } else {
                             ctx.getSource().sendFeedback(Text.literal("Invalid index.").formatted(Formatting.RED));
@@ -205,7 +207,7 @@ public final class SeedFinderCommand {
         });
     }
 
-    private static int findStructure(com.mojang.brigadier.CommandContext<FabricClientCommandSource> ctx,
+    private static int findStructure(CommandContext<FabricClientCommandSource> ctx,
                                       String name, int radiusChunks, boolean random) {
         var client = MinecraftClient.getInstance();
         if (client.player == null) return 0;
@@ -244,8 +246,8 @@ public final class SeedFinderCommand {
             WaypointStore.add(new WaypointStore.Waypoint(type.displayName, pos, color));
             Text tp = Text.literal(" [TP]").styled(s ->
                 s.withColor(Formatting.GREEN)
-                    .withClickEvent(new ClickEvent(ClickEvent.Action.RUN_COMMAND, "/tp @p " + pos.getX() + " ~ " + pos.getZ()))
-                    .withHoverEvent(new HoverEvent(HoverEvent.Action.SHOW_TEXT, Text.literal("Teleport"))));
+                    .withClickEvent(new ClickEvent.RunCommand("/tp @p " + pos.getX() + " ~ " + pos.getZ()))
+                    .withHoverEvent(new HoverEvent.ShowText(Text.literal("Teleport"))));
             ctx.getSource().sendFeedback(Text.literal(
                 "Random " + type.displayName + " at X:" + pos.getX() + " Z:" + pos.getZ()
                 + " (" + dist + "m " + dir + ")").append(tp));
@@ -266,8 +268,8 @@ public final class SeedFinderCommand {
 
         Text tp = Text.literal(" [TP]").styled(s ->
             s.withColor(Formatting.GREEN)
-                .withClickEvent(new ClickEvent(ClickEvent.Action.RUN_COMMAND, "/tp @p " + found.getX() + " ~ " + found.getZ()))
-                .withHoverEvent(new HoverEvent(HoverEvent.Action.SHOW_TEXT, Text.literal("Teleport"))));
+                .withClickEvent(new ClickEvent.RunCommand("/tp @p " + found.getX() + " ~ " + found.getZ()))
+                .withHoverEvent(new HoverEvent.ShowText(Text.literal("Teleport"))));
         ctx.getSource().sendFeedback(Text.literal(
             "Nearest " + type.displayName + " at X:" + found.getX() + " Z:" + found.getZ()
             + " (" + dist + "m " + dir + ")").append(tp));
