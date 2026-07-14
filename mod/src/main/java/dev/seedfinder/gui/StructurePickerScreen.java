@@ -441,7 +441,7 @@ public class StructurePickerScreen extends Screen {
             CompletableFuture.supplyAsync(() -> {
                 List<BlockPos> positions = StructureFinder.allWithin(seed, t, px, pz, radius);
                 positions.sort(java.util.Comparator.comparingDouble(
-                    p -> p.getSquaredDistance(px, pz) + 64 * 64));
+                    p -> p.getSquaredDistance((double)px, 0.0, (double)pz)));
                 int max = Math.min(positions.size(), MAX_FIND_ALL_PER_TYPE);
                 return positions.subList(0, max);
             }).thenAcceptAsync(positions -> {
