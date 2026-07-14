@@ -1,15 +1,34 @@
 # SeedFinder Mod — CHECKPOINT
 
 ## Active Task
-Commands done + resolveStructure() added. Pushing to GH to trigger CI build. Next: StructurePickerScreen rewrite (radar map, Find All, click-to-toggle, etc.).
+StructurePickerScreen complete rewrite — radar map, Find All, click-to-toggle waypoints, sort controls, radius presets, TP/Copy buttons, nether coords, clipboard. Waiting for CI build verification.
 
 ### Current Changes (uncommitted)
 
 | # | File | Changes |
 |---|------|---------|
-| 1 | `SeedFinderCommand.java` | Added `find`, `list`, `remove`, `tp`, `export`, `config radius` subcommands with auto-complete, clickable chat messages, random mode |
-| 2 | `StructurePickerScreen.java` | Added `resolveStructure()` public static method — resolves aliases/names from commands |
-| 3 | `CHECKPOINT.md` | This update |
+| 1 | `StructurePickerScreen.java` | Complete rewrite (~1100 lines) — see below |
+| 2 | `CHECKPOINT.md` | This update |
+
+### StructurePickerScreen.java — New Features
+
+| Feature | Details |
+|---------|---------|
+| **Find All in Radius** | Searches all 18 structure types in parallel via `CompletableFuture`. Capped at 150/type, 1000 total. Debounced. Shows "Searching..." + remaining types. |
+| **Radar Map View** | Toggle [List]/[Map] in results panel header. Player at center (cross marker + "You"). Structure dots colored by type. Distance rings at 250/500/1000 blocks (circle approximation via perimeter dots). N/S/E/W cardinal labels. Hover dot → tooltip (name, distance, direction, coords). Click dot → toggle waypoint. Scroll to zoom (1.2x factor). Scale indicator bottom-left. |
+| **Click-to-toggle waypoint** | Click any result row (list view) or dot (map view) → adds waypoint if not waypointed, removes if already. Visual feedback: checkmark prefix on label, color-coded top border for waypointed rows. |
+| **Sort controls** | Header button cycles: Dist ▼ / Type ▼ / Dim ▼. Results re-sort in-place. |
+| **[TP] button** | Per-row teleport button in list view. Only visible in creative mode. Runs `/tp @p X ~ Z`. Green text, brighter on hover. |
+| **[Copy] button** | Per-row copy button → clipboard via `Keyboard.setClipboard()`. "Copied!" toast overlay (1.5s). |
+| **[Copy All] button** | Copies all results as formatted string: `"Name" at X:... Z:... | ...`. Shows "Copied all (N results)" toast. |
+| **Nether coords** | Shows `(N:X-30 Z-4)` on second line of each result row. Only for OVERWORLD/ALL dimension structures. |
+| **Radius presets** | 4 small inline buttons: `[500][1k][2k][5k]`. Click → updates config + Find All button label dynamically via `setMessage()`. |
+| **Bottom bar** | Reorganized: `[Find All (640 ch)] [500][1k][2k][5k] [Clear] [Close]` |
+| **Removed 20-result cap** | Per-type search now shows up to 200 nearest instances. Virtual scrolling handles large lists. |
+| **Clipboard toast** | Centered dark overlay showing "Copied!" or "Copied all..." for 1.5s. |
+| **Row highlighting** | Hovered rows get subtle white overlay. Waypointed rows have color-coded top border. |
+| **Map scroll-to-zoom** | Mouse wheel in map view adjusts `mapScale` (0.25–20.0 range, 1.2x factor). |
+| **Preserved** | `resolveStructure()` unchanged (used by commands). `cardinalDirection()` unchanged. Tab/search/filter system unchanged. Seed auto-detect unchanged. `removeResult()` unchanged. Structure button grid unchanged. Touch device support kept.
 
 ## All Changes (Session 2026-07-13 — resumed)
 
